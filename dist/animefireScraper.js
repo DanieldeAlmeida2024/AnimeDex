@@ -51,6 +51,7 @@ exports.scrapeAnimeDetails = scrapeAnimeDetails;
 exports.scrapeStreamsFromContentPage = scrapeStreamsFromContentPage;
 const axios_1 = __importDefault(require("axios"));
 const cheerio = __importStar(require("cheerio"));
+const puppeteer_1 = __importDefault(require("puppeteer"));
 const BASE_URL = 'https://animefire.plus';
 function scrapeRecentAnimes(type_1) {
     return __awaiter(this, arguments, void 0, function* (type, page = 1) {
@@ -130,6 +131,8 @@ function searchAnimes(query_1) {
 }
 function scrapeAnimeDetails(animefireUrl) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
+        console.log(`Scraping details for: ${animefireUrl}`);
         try {
             const { data } = yield axios_1.default.get(animefireUrl, {
                 headers: {
@@ -137,110 +140,138 @@ function scrapeAnimeDetails(animefireUrl) {
                 }
             });
             const $ = cheerio.load(data);
-            const description = $('div.divSinopse > span.spanAnimeInfo').text().trim();
-            const genres = $('div.animeInfo a.spanGeneros').map((i, el) => $(el).text().trim()).get();
-            const releaseYearMatch = $('div.divAnimePageInfo div.animeInfo:nth-child(8) > span.spanAnimeInfo').text().match(/\d{4}/);
-            const releaseYear = releaseYearMatch ? parseInt(releaseYearMatch[0]) : undefined;
-            const poster = $('img.capa-anime-poster').attr('src');
-            let background = $('div.sub_animepage_img > img').attr('data-src');
-            const type = animefireUrl.includes('/filme/') ? 'movie' : 'series';
+            const description = $('div.desc_anime > p').text().trim();
+            const genres = $('div.categorias_box > a').map((i, el) => $(el).text().trim()).get();
+            const releaseYear = $('div.anime_info_principal_ep > span:nth-child(2)').text().trim();
+            const poster = $('div.anime_image > img').attr('src');
+            const background = $('div.anime_capa > img').attr('src');
+            const title = $('div.anime_info_principal > h1').text().trim();
+            const type = animefireUrl.includes('filmes') ? 'movie' : 'series';
             const episodes = [];
             if (type === 'series') {
+                // Extrai o slug do anime da URL para construir a URL do episódio corretamente
+                // Ex: de 'https://animefire.plus/animes/sousou-no-frieren-dublado-todos-os-episodios'
+                // queremos 'sousou-no-frieren-dublado-todos-os-episodios'
+                const animeSlugMatch = animefireUrl.match(/\/animes\/([^\/]+)(?:-todos-os-episodios)?\/?$/);
+                const animeSlug = animeSlugMatch ? animeSlugMatch[1] : '';
+                if (!animeSlug) {
+                    console.error(`[SCRAPER] Could not extract anime slug from URL: ${animefireUrl}`);
+                    // Continue, mas com um aviso, ou retorne null se a URL for essencial
+                }
                 $('div.div_video_list > a').each((i, el) => {
-                    const epUrl = $(el).attr('href');
+                    const epUrlFromHref = $(el).attr('href');
                     const epTitle = $(el).find('span.epT').text().trim() || $(el).text().trim().replace(/Episódio \d+:\s*/, '');
-                    const epNumberMatch = epUrl === null || epUrl === void 0 ? void 0 : epUrl.match(/\/(\d+)$/);
-                    const episodeNumber = epNumberMatch ? parseInt(epNumberMatch[0]) : (i + 1);
-                    console.log("epNumberMatch: " + episodeNumber);
-                    if (epUrl) {
-                        const fullEpisodeUrl = epUrl.startsWith('http') ? epUrl : `${BASE_URL}${epUrl}`;
+                    // Tenta extrair o número do episódio do href se estiver no formato /NUMERO
+                    let episodeNumber;
+                    const epNumberMatch = epUrlFromHref === null || epUrlFromHref === void 0 ? void 0 : epUrlFromHref.match(/\/(\d+)$/);
+                    if (epNumberMatch) {
+                        episodeNumber = parseInt(epNumberMatch[1]);
+                    }
+                    else {
+                        // Fallback para o índice se o href não tiver o número no final
+                        episodeNumber = i + 1; // Assumes 1-based indexing for episodes
+                    }
+                    // CONSTRUA A URL DO EPISÓDIO CORRETAMENTE, INCLUINDO /episodio/
+                    // Ex: https://animefire.plus/animes/sousou-no-frieren-dublado-todos-os-episodios/episodio/1
+                    const fullEpisodeUrl = `${BASE_URL}/animes/${animeSlug}/episodio/${episodeNumber}`;
+                    console.log(`[EPISODE_SCRAPER] Original href from element: ${epUrlFromHref}`);
+                    console.log(`[EPISODE_SCRAPER] Constructed episode URL: ${fullEpisodeUrl}`);
+                    if (fullEpisodeUrl) {
                         episodes.push({
                             id: `${encodeURIComponent(animefireUrl)}:${episodeNumber}`,
                             title: epTitle,
-                            season: 1,
+                            season: 1, // Assumindo Season 1 para todos, ajuste se houver temporadas
                             episode: episodeNumber,
-                            episodeUrl: fullEpisodeUrl,
+                            episodeUrl: fullEpisodeUrl, // Esta é a URL que será salva e usada para o Puppeteer
                         });
                     }
                 });
-                console.log(`Found ${episodes.length} episodes for series: ${animefireUrl}`);
+                console.log(`[SCRAPER] Found ${episodes.length} episodes for series: ${animefireUrl}`);
             }
-            return {
-                type: type,
+            const scrapedDetails = {
                 animefireUrl: animefireUrl,
+                title: title,
                 description: description,
                 genres: genres,
-                releaseYear: releaseYear,
-                background: background,
+                releaseYear: releaseYear ? parseInt(releaseYear, 10) : undefined,
                 poster: poster,
+                background: background,
+                type: type,
                 episodes: episodes.length > 0 ? episodes : undefined,
             };
+            console.log(`[SCRAPER] Returning scraped details (first episode URL: ${(_b = (_a = scrapedDetails.episodes) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.episodeUrl})`);
+            return scrapedDetails;
         }
         catch (error) {
-            console.error(`Erro ao fazer scraping de detalhes do anime (${animefireUrl}):`, error.message);
+            console.error(`[SCRAPER] Erro ao fazer scraping de detalhes do anime (${animefireUrl}):`, error.message);
             return null;
         }
     });
 }
 function scrapeStreamsFromContentPage(contentUrl) {
     return __awaiter(this, void 0, void 0, function* () {
+        const partes = contentUrl.split("/");
+        const episode = (parseInt(partes[partes.length - 1])).toString();
+        partes[partes.length - 1] = episode;
+        let novoUrl = partes.join("/");
+        console.log(`[STREAM_SCRAPER] Scraping streams from: ${contentUrl} using Puppeteer`);
         const streams = [];
+        let browser;
         try {
-            const { data } = yield axios_1.default.get(contentUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
+            // Inicializa o navegador headless
+            browser = yield puppeteer_1.default.launch({
+                headless: true // true para rodar sem interface, false para ver o navegador (útil para depuração)
             });
-            const $ = cheerio.load(data);
-            yield new Promise(resolve => setTimeout(resolve, 2000));
-            // Estratégia Principal: Usar o ID fornecido para a tag <video>
-            const videoElement = $("video");
-            if (videoElement && videoElement.length > 0) {
-                console.log(`[STREAM_SCRAPER] Found <video> tag with ID #my-video_html5_api.`);
-                // 1. Tentar pegar o src diretamente da tag <video>
-                let videoSrc = videoElement.attr("src");
-                if (videoSrc && videoSrc.startsWith('https')) {
-                    streams.push({ url: videoSrc, name: 'AnimeFire Direct (MP4)' });
-                    console.log(`[STREAM_SCRAPER] Added direct video src: ${videoSrc}`);
+            const page = yield browser.newPage();
+            // Configura o User-Agent (importante para evitar bloqueios)
+            yield page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+            // Navega para a URL do episódio e espera até que a rede esteja inativa (indicando que a página carregou JS)
+            yield page.goto(contentUrl, { waitUntil: 'networkidle2', timeout: 30000 }); // Aumentei o timeout para 30s
+            // Espera pelo elemento de vídeo aparecer no DOM. Isso é CRÍTICO.
+            // O Stremio às vezes pode carregar as streams mais rápido do que o Puppeteer espera.
+            // Ajuste este tempo se necessário. 5000ms (5 segundos) é um bom começo.
+            yield page.waitForSelector('#my-video_html5_api', { timeout: 15000 }); // Espera até 15 segundos pelo elemento
+            // Agora, use o Puppeteer para extrair o atributo 'src' do elemento de vídeo
+            const streamUrl = yield page.$eval('#my-video_html5_api', videoElement => {
+                // No contexto do navegador, tentamos pegar o 'src' ou 'data-video-src'
+                const src = videoElement.getAttribute('src');
+                const dataSrc = videoElement.getAttribute('data-video-src');
+                console.log(`[PUPPETEER_EVAL] Found src: ${src}`);
+                console.log(`[PUPPETEER_EVAL] Found data-video-src: ${dataSrc}`);
+                // Priorize o 'src' que é a URL do arquivo de vídeo direto
+                return src || dataSrc;
+            });
+            if (streamUrl && streamUrl.startsWith('https')) {
+                if (yield axios_1.default.get(streamUrl.replace('sd/', 'fhd/')).catch(() => false)) {
+                    streams.push({ url: streamUrl.replace('sd/', 'fhd/'), name: 'AnimeFire Player 1080p' });
                 }
-                // 2. Tentar pegar o 'data-video-src' como alternativa (pode ser um redirecionador ou outra fonte)
-                if (streams.length === 0) { // Adiciona apenas se 'src' não forneceu um stream
-                    const dataVideoSrc = $("video").attr("src");
-                    if (dataVideoSrc && dataVideoSrc.startsWith('https')) {
-                        // O 'data-video-src' às vezes precisa de um request adicional para obter a URL final.
-                        // Para simplicidade, vamos adicioná-lo diretamente. O Stremio tentará abrir.
-                        streams.push({ url: dataVideoSrc, name: 'AnimeFire (Data Stream)' });
-                        console.log(`[STREAM_SCRAPER] Added data-video-src: ${dataVideoSrc}`);
-                    }
+                if (yield axios_1.default.get(streamUrl.replace('sd/', 'hd/')).catch(() => false)) {
+                    streams.push({ url: streamUrl.replace('sd/', 'fhd/'), name: 'AnimeFire Player 720p' });
                 }
+                streams.push({ url: streamUrl, name: 'AnimeFire Player SD' });
+                console.log(`[STREAM_SCRAPER] Added stream via Puppeteer: ${streamUrl}`);
             }
             else {
-                console.log(`[STREAM_SCRAPER] <video> tag with ID #my-video_html5_api not found. Trying iframe.`);
-                // Estratégia Secundária: Procurar por iframes de players externos (fallback)
-                const playerIframe = $('iframe.player-iframe');
-                if (playerIframe.length > 0) {
-                    const iframeSrc = playerIframe.attr('src');
-                    if (iframeSrc) {
-                        streams.push({ url: iframeSrc, name: 'Player Externo (Iframe)' });
-                        console.log(`[STREAM_SCRAPER] Added iframe stream: ${iframeSrc}`);
-                    }
-                }
-                else {
-                    $('iframe').each((i, el) => {
-                        const genericIframeSrc = $(el).attr('src');
-                        if (genericIframeSrc && (genericIframeSrc.includes('player') || genericIframeSrc.includes('embed') || genericIframeSrc.includes('video'))) {
-                            streams.push({ url: genericIframeSrc, name: `Player Externo (Iframe Genérico ${i + 1})` });
-                            console.log(`[STREAM_SCRAPER] Added generic iframe stream: ${genericIframeSrc}`);
-                        }
-                    });
-                }
+                console.warn(`[STREAM_SCRAPER] No valid stream URL found via Puppeteer for #my-video_html5_api. Stream URL: ${streamUrl}`);
             }
-            console.log(`[STREAM_SCRAPER] Found ${streams.length} streams for ${contentUrl}.`);
-            return streams;
+            // Você pode adicionar lógica para iframes aqui também, se for um fallback necessário
+            // Por exemplo:
+            // const iframeSrc = await page.$eval('iframe.player-iframe', iframe => iframe.src).catch(() => null);
+            // if (iframeSrc && iframeSrc.startsWith('http')) {
+            //     streams.push({ url: iframeSrc, name: 'Player Externo (Iframe)' });
+            //     console.log(`[STREAM_SCRAPER] Added iframe stream via Puppeteer: ${iframeSrc}`);
+            // }
         }
         catch (error) {
-            console.error(`[STREAM_SCRAPER] Erro ao fazer scraping de streams (${contentUrl}):`, error.message);
-            return [];
+            console.error(`[STREAM_SCRAPER] Erro ao fazer scraping de streams com Puppeteer (${novoUrl}):`, error.message);
+            // Em caso de erro (ex: timeout do seletor), streams será vazio, o que resultará no erro "Nenhum stream encontrado".
         }
+        finally {
+            if (browser) {
+                yield browser.close(); // Sempre fechar o navegador
+            }
+        }
+        console.log(`[STREAM_SCRAPER] Found ${streams.length} streams for ${novoUrl}.`);
+        return streams;
     });
 }

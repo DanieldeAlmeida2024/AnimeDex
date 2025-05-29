@@ -12,52 +12,62 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const animefireScraper_1 = require("./animefireScraper");
+const animefireScraper_1 = require("./services/animefireScraper");
 const express_1 = __importDefault(require("express"));
 const client_1 = require("@prisma/client");
-const BASE_URL = 'https://animefire.plus';
-const prisma = new client_1.PrismaClient();
-const manifest = {
-    id: 'org.stremio.animefire-plus-addon',
-    version: '1.0.0',
-    name: 'AnimeFire.plus Addon',
-    description: 'Busca animes (filmes e séries) do AnimeFire.plus para o Stremio.',
-    resources: ['catalog', 'meta', 'stream'],
-    types: ['movie', 'series'],
-    catalogs: [
-        {
-            type: 'series',
-            id: 'animefire_series_catalog',
-            name: 'AnimeFire Series',
-            extra: [
-                { name: 'search', isRequired: false },
-                { name: 'skip', isRequired: false }
-            ]
-        },
-        {
-            type: 'movie',
-            id: 'animefire_movies_catalog',
-            name: 'AnimeFire Filmes',
-            extra: [
-                { name: 'search', isRequired: false },
-                { name: 'skip', isRequired: false }
-            ]
-        }
-    ],
-};
+const url_1 = require("./constants/url");
+const manifest_1 = require("./utils/manifest");
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
-const builder = addonBuilder(manifest);
+const BASE_URL = url_1.PROVIDER_URL;
+const prisma = new client_1.PrismaClient();
+const builder = addonBuilder(manifest_1.manifest);
 builder.defineCatalogHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ type, id, extra }) {
-    console.log(`Recebida requisição de catálogo: Type=${type}, ID=${id}, Extra=${JSON.stringify(extra)}`);
     const { search, skip } = extra;
     const page = skip ? Math.floor(parseInt(skip) / 20) + 1 : 1;
     let scrapedAnimes = [];
-    if (search) {
-        scrapedAnimes = yield (0, animefireScraper_1.searchAnimes)(search, page);
+    if (search === null || search === void 0 ? void 0 : search.search) {
+        scrapedAnimes = yield (0, animefireScraper_1.searchAnimes)(search, type);
     }
     else {
-        scrapedAnimes = yield (0, animefireScraper_1.scrapeRecentAnimes)(type, page);
-    }
+        switch (id) {
+            case 'animefire_series_catalog': // Antigo "Top Animes" para séries
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeTopAnimes)(type, page);
+                break;
+            case 'animefire_movies_catalog': // Antigo "Filmes Dublados" para filmes
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeDubladosAnimes)(type, page); // Usando a função de dublados para filmes
+                break;
+            case 'animefire_lancamentos_series_catalog':
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeRecentAnimes)(type, page); // 'em-lancamento' para séries
+                break;
+            case 'animefire_lancamentos_movies_catalog':
+                // Se 'em-lancamento' também tiver filmes e você quiser um catálogo separado,
+                // você pode chamar scrapeRecentAnimes aqui também, mas o filtro interno é crucial.
+                // Ou, se houver uma URL específica para filmes em lançamento, use-a.
+                // Por enquanto, vamos apontar para a mesma função, confiando no filtro interno.
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeRecentAnimes)(type, page); // 'em-lancamento' para filmes
+                break;
+            case 'animefire_atualizados_series_catalog':
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeAtualizadosAnimes)(type, page);
+                break;
+            case 'animefire_atualizados_movies_catalog':
+                // Assumindo que 'animes-atualizados' pode ter filmes também, e você quer filtrar.
+                // Se o site tiver uma URL específica para filmes atualizados, use-a.
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeAtualizadosAnimes)(type, page);
+                break;
+            case 'animefire_dublados_series_catalog':
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeDubladosAnimes)(type, page);
+                break;
+            case 'animefire_legendados_series_catalog':
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeLegendadosAnimes)(type, page);
+                break;
+            case 'animefire_legendados_movies_catalog':
+                scrapedAnimes = yield (0, animefireScraper_1.scrapeLegendadosAnimes)(type, page);
+                break;
+            default:
+                console.warn(`Catálogo desconhecido solicitado: ${id}. Retornando vazio.`);
+                break;
+        }
+    } // Usa um switch-case para chamar a função de scraping correta com base no ID do catálogo
     for (const scrapedAnime of scrapedAnimes) {
         try {
             yield prisma.anime.upsert({
@@ -78,7 +88,6 @@ builder.defineCatalogHandler((_a) => __awaiter(void 0, [_a], void 0, function* (
             });
         }
         catch (e) {
-            console.error(`Erro ao salvar/atualizar anime no DB (${scrapedAnime.title}):`, e.message);
         }
     }
     const metas = scrapedAnimes.map(anime => {
@@ -96,7 +105,6 @@ builder.defineCatalogHandler((_a) => __awaiter(void 0, [_a], void 0, function* (
 }));
 builder.defineMetaHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ id, type }) {
     var _b, _c, _d, _e, _f, _g, _h, _j;
-    console.log(`Recebida requisição de meta: Type=${type}, ID=${id}`);
     const decodedAnimefireUrl = decodeURIComponent(id.replace(`animefire_${type}_`, ''));
     if (!decodedAnimefireUrl || !decodedAnimefireUrl.startsWith(BASE_URL)) {
         return Promise.reject(new Error('ID de anime inválido ou URL base incorreta.'));
@@ -116,7 +124,7 @@ builder.defineMetaHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ i
                     poster: (_b = details.poster) !== null && _b !== void 0 ? _b : anime === null || anime === void 0 ? void 0 : anime.poster,
                     title: (_c = details.title) !== null && _c !== void 0 ? _c : anime === null || anime === void 0 ? void 0 : anime.title,
                     type: (_d = details.type) !== null && _d !== void 0 ? _d : anime === null || anime === void 0 ? void 0 : anime.type,
-                    background: details.background,
+                    background: details.poster,
                     episodesData: details.episodes ? JSON.stringify(details.episodes) : null,
                 },
                 create: {
@@ -127,7 +135,7 @@ builder.defineMetaHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ i
                     description: details.description,
                     genres: genresAsString,
                     releaseYear: details.releaseYear,
-                    background: details.background,
+                    background: details.poster,
                     poster: details.poster,
                     episodesData: details.episodes ? JSON.stringify(details.episodes) : null,
                 }
@@ -155,7 +163,7 @@ builder.defineMetaHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ i
         description: (_h = anime.description) !== null && _h !== void 0 ? _h : undefined,
         genres: genresAsArray,
         releaseInfo: anime.releaseYear !== null ? anime.releaseYear : undefined,
-        background: (_j = anime.background) !== null && _j !== void 0 ? _j : undefined,
+        background: (_j = anime.poster) !== null && _j !== void 0 ? _j : undefined,
         videos: type === 'series' && episodesFromDb.length > 0 ? episodesFromDb.map(ep => ({
             id: ep.id,
             title: ep.title,
@@ -167,7 +175,6 @@ builder.defineMetaHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ i
     return Promise.resolve({ meta });
 }));
 builder.defineStreamHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ id, type }) {
-    console.log(`Recebida requisição de stream: Type=${type}, ID=${id}`);
     let animefireContentUrl = '';
     if (type === 'movie') {
         animefireContentUrl = decodeURIComponent(id.replace(`animefire_movie_`, ''));
@@ -184,28 +191,23 @@ builder.defineStreamHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({
             else {
                 episodeNumberStr = (parseInt(episodeNumberStr) - 1).toString(); // Ajusta o número do episódio para zero-indexed
             }
-            console.log(`[STREAM_HANDLER_DEBUG] ID recebido: ${id}`);
-            console.log(`[STREAM_HANDLER_DEBUG] Anime URL Base: ${animefireUrlBase}, Episode Number String: ${episodeNumberStr}`);
             const anime = yield prisma.anime.findUnique({ where: { animefireUrl: animefireUrlBase } });
             if (anime && anime.episodesData) {
                 const episodes = JSON.parse(anime.episodesData);
                 const targetEpisode = episodes.find(ep => ep.episode.toString() === episodeNumberStr);
                 if (targetEpisode && targetEpisode.episodeUrl) {
                     animefireContentUrl = targetEpisode.episodeUrl; // <-- ESTA É A LINHA CRÍTICA
-                    console.log(`[STREAM_HANDLER_DEBUG] Found target episode in DB. Episode Num: ${targetEpisode.episode}, URL: ${animefireContentUrl}`);
                 }
                 else {
                     console.warn(`[STREAM_HANDLER_DEBUG] Episode ${episodeNumberStr} not found in DB for ${animefireUrlBase} or episodeUrl is missing. Attempting to construct URL.`);
                     // Fallback se a URL do episódio não estiver no DB
                     animefireContentUrl = `${animefireUrlBase}/${episodeNumberStr}`;
-                    console.log(`[STREAM_HANDLER_DEBUG] Constructed fallback URL: ${animefireContentUrl}`);
                 }
             }
             else {
                 console.warn(`[STREAM_HANDLER_DEBUG] No episode data in DB for ${animefireUrlBase} during stream request. Attempting to construct URL.`);
                 // Fallback se não há dados de episódios no DB
-                animefireContentUrl = `${animefireUrlBase}/episodio/${episodeNumberStr}`;
-                console.log(`[STREAM_HANDLER_DEBUG] Constructed fallback URL (no DB data): ${animefireContentUrl}`);
+                animefireContentUrl = `${animefireUrlBase}/${episodeNumberStr}`;
             }
         }
         else {
@@ -218,7 +220,6 @@ builder.defineStreamHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({
     if (!animefireContentUrl || !animefireContentUrl.startsWith(BASE_URL)) {
         return Promise.reject(new Error('URL de conteúdo inválida para streams.'));
     }
-    console.log(`[STREAM_HANDLER_DEBUG] AnimeFire Content URL: ${animefireContentUrl}`);
     const streams = yield (0, animefireScraper_1.scrapeStreamsFromContentPage)(animefireContentUrl);
     if (streams.length === 0) {
         return Promise.reject(new Error('Nenhum stream encontrado para este conteúdo.'));

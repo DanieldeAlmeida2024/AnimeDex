@@ -3,14 +3,14 @@
   "version": "0.0.1",
   "main": "index.js",
   "scripts": {
-    "start": "node dist/addon.js",
-    "dev": "ts-node-dev src/addon.ts", 
+    "start": "node dist/main.js",
+    "dev": "ts-node-dev src/main.ts", 
     "build": "tsc",
     "migrate:dev": "npx prisma migrate dev",
     "prisma:generate": "npx prisma generate"
   },
   "keywords": [],
-  "author": "",
+  "author": "Daniel de Almeida",
   "license": "ISC",
   "description": "",
   "devDependencies": {
