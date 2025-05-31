@@ -1,0 +1,1 @@
+export const TORRENT_ANIME_URL = 'https://darkmahou.org';

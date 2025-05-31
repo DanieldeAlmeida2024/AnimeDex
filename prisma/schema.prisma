@@ -5,33 +5,33 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db" // Você pode usar env("DATABASE_URL") aqui também, é mais flexível
 }
 
 model Anime {
-  id          String    @id @default(cuid())
-  title       String
-  type        String // "movie" ou "series"
-  poster      String?
-  background  String?
-  animefireUrl String    @unique // <--- Deixe APENAS esta aqui!
-  description String?
-  genres      String?  // Separados por vírgula
-  releaseYear Int?
-  lastUpdated DateTime  @default(now()) @updatedAt
-  episodesData String? @map("episodes_data") // Para armazenar JSON de episódios
-  // REMOVA A SEGUINTE LINHA:
-  // @@unique([animefireUrl])
+  id              Int      @id @default(autoincrement())
+  imdbId          String   @unique
+  title           String // Agora será preenchido pela TMDB
+  poster          String?  // Pode vir nulo da TMDB
+  animefireUrl    String?  @unique // Opcional: Se nem sempre tem uma URL AnimeFire
+  description     String?
+  genres          String?  // JSON string de array de strings (salvar como string)
+  releaseYear     Int?
+  background      String?  // URL da imagem de fundo
+  type            String?  // "movie" ou "series" - Pode vir nulo
+  episodesData    String?  // JSON string de ScrapedEpisode[] - SEM @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  stremioId       String?  // Pode ser igual ao imdbId, ou um ID interno do Stremio
+  lastSearchedAt  DateTime @default(now())
+
 }
 
-// Você pode adicionar outros modelos conforme a necessidade, como Episodios, se for o caso
-// model Episode {
-//   id           String @id @default(uuid())
-//   animeId      String
-//   anime        Anime  @relation(fields: [animeId], references: [id])
-//   episodeNumber Int
-//   title        String?
-//   streamUrl    String // URL do stream
-//   createdAt    DateTime @default(now())
-//   updatedAt    DateTime @updatedAt
-// }
+// Se você tem um modelo chamado 'ScrapedTorrent' ou similar que contenha 'episodesData'
+// e também tinha o @db.Text, remova-o de lá também.
+
+model SearchLog {
+  id        Int      @id @default(autoincrement())
+  imdbId    String
+  searchAt  DateTime
+}

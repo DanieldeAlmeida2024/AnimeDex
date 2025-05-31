@@ -1,1 +1,1 @@
-import './providers/animefire/addon';
+import './addon';
