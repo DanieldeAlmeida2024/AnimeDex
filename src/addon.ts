@@ -2,11 +2,12 @@ import express from 'express';
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk'); 
 import * as dotenv from 'dotenv';
 import { manifest } from './utils/manifest';
-import { ScrapedStream, ScrapedTorrentStream, ScrapedEpisodeTorrent, ScrapedEpisode } from './utils/types/types';
+import { ScrapedStream, ScrapedTorrentStream, ScrapedEpisodeTorrent, ScrapedEpisode, ScrapedAnime, Meta } from './utils/types/types';
 import { setRealDebridAuthToken } from './utils/realDebridApi';
 import { PrismaClient } from '@prisma/client';
 import { getTmdbInfoByImdbId } from './utils/tmdbApi';
 import { scrapeMagnetLinks } from './services/scraper';
+import { animeFireHeadler } from './providers/animeFire/addon';
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -15,6 +16,16 @@ setRealDebridAuthToken(MY_REALDEBRID_API_TOKEN);
 
 const builder = addonBuilder(manifest);
 
+
+builder.defineCatalogHandler(async ({ type, id, extra }: { type: string; id: string; extra: { search?: string; skip?: string } }) => {
+    const metas = await animeFireHeadler({type, id, extra});
+    console.log(`[ADDON SRC]Type: ${type}, id: ${id}, extra: ${extra}`);
+    return Promise.resolve({ metas });
+});
+
+builder.defineMetaHandler(async (id: string) => ({
+    
+}));
 
 builder.defineStreamHandler(async ({ id, type }: { id: string; type: string }) => {
     let streams: ScrapedStream[] = [];
@@ -100,7 +111,8 @@ builder.defineStreamHandler(async ({ id, type }: { id: string; type: string }) =
                 title: link.title ?? '',
                 magnet: link.magnet ?? '',
                 source: 'Real-Debrid',
-                url: link.url ?? ''
+                url: link.url ?? '',
+                animeFireStream: link.animeFire ?? ''
             });
         }
 

@@ -1,4 +1,4 @@
-import { Stream } from '../../utils/types/types';
+import { ScrapedTorrentStream, Stream } from '../../utils/types/types';
 import { TORRENT_ANIME_URL } from './constants/url';
 import { searchAnimeTorrentsNyaa } from './services/nyaaScraper';
 
@@ -7,7 +7,7 @@ export async function NyaaTorrentHeadler(
     animeTitle: string,
     season?: number,
     episode?: number
-): Promise<{ streams: Stream[] }> {
+): Promise<{ streams: ScrapedTorrentStream[] }> {
 
     const streams = await searchAnimeTorrentsNyaa(animeTitle, season, episode);
 

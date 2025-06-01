@@ -1,6 +1,6 @@
-import { Stream } from '../../utils/types/types';
+import { ScrapedTorrentStream, Stream } from '../../utils/types/types';
 import { TORRENT_ANIME_URL } from './constants/url';
-import { searchAnimeTorrents } from './services/darkmahouScraper';
+import { searchAnimeTorrentsDarkmahou } from './services/darkmahouScraper';
 
 
 const BASE_URL = TORRENT_ANIME_URL;
@@ -9,9 +9,9 @@ export async function darkmahouTorrentHeadler(
 	animeTitle: string,
     season?: number,
     episode?: number
-): Promise<{ streams: Stream[] }> {
+): Promise<{ streams: ScrapedTorrentStream[] }> {
 
-	const streams = await searchAnimeTorrents(animeTitle, season, episode);
+	const streams = await searchAnimeTorrentsDarkmahou(animeTitle, season, episode);
 
 	if (streams.length === 0) {
 		return Promise.reject(new Error('Nenhum stream encontrado para este conteúdo.'));

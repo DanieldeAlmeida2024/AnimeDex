@@ -9,13 +9,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.darkmahouTorrentHeadler = darkmahouTorrentHeadler;
-const url_1 = require("./constants/url");
-const darkmahouScraper_1 = require("./services/darkmahouScraper");
-const BASE_URL = url_1.TORRENT_ANIME_URL;
-function darkmahouTorrentHeadler(animeTitle, season, episode) {
+exports.NyaaTorrentHeadler = NyaaTorrentHeadler;
+const nyaaScraper_1 = require("./services/nyaaScraper");
+function NyaaTorrentHeadler(animeTitle, season, episode) {
     return __awaiter(this, void 0, void 0, function* () {
-        const streams = yield (0, darkmahouScraper_1.searchAnimeTorrentsDarkmahou)(animeTitle, season, episode);
+        const streams = yield (0, nyaaScraper_1.searchAnimeTorrentsNyaa)(animeTitle, season, episode);
         if (streams.length === 0) {
             return Promise.reject(new Error('Nenhum stream encontrado para este conteúdo.'));
         }

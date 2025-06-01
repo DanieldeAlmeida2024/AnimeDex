@@ -1,60 +1,81 @@
 "use strict";
-// src/utils/realDebridApi.ts
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseFileEpisodeInfo = parseFileEpisodeInfo;
-// ... (todas as outras imports e a makeRdRequest, getTorrentInfo, addTorrent, selectFilesInTorrent) ...
-// Certifique-se de que esta função está presente em realDebridApi.ts
-function parseFileEpisodeInfo(fileName) {
-    const lowerFileName = fileName.toLowerCase();
-    let season;
-    let episode;
-    // Tenta encontrar o padrão SXXEXX (ex: S01E02)
-    const sxeMatch = lowerFileName.match(/s(\d+)e(\d+)/);
-    if (sxeMatch) {
-        season = parseInt(sxeMatch[1], 10);
-        episode = parseInt(sxeMatch[2], 10);
-        return { season, episode };
-    }
-    // Tenta encontrar o padrão XX.YY (ex: 01.02)
-    const dotEpisodeMatch = lowerFileName.match(/\b(\d{1,2})\.(\d{1,2})\b/);
-    if (dotEpisodeMatch && parseInt(dotEpisodeMatch[1], 10) <= 2 && parseInt(dotEpisodeMatch[2], 10) > 0) { // Assume S1.E2 ou S01.E02
-        season = parseInt(dotEpisodeMatch[1], 10);
-        episode = parseInt(dotEpisodeMatch[2], 10);
-        return { season, episode };
-    }
-    // Tenta encontrar o padrão EXX (ex: E02 ou Ep02)
-    const epMatch = lowerFileName.match(/(?:e|ep)(\d+)/);
-    if (epMatch) {
-        episode = parseInt(epMatch[1], 10);
-        return { episode };
-    }
-    // Tenta encontrar o padrão XX (apenas números, como "01", "02")
-    // Deve ser mais cauteloso para não pegar anos, resoluções, etc.
-    const numberMatch = lowerFileName.match(/\b(\d{1,3})\b/g); // Pega todos os números de 1 a 3 dígitos
-    if (numberMatch) {
-        const potentialEpisodes = numberMatch
-            .map(n => parseInt(n, 10))
-            .filter(n => n > 0 && n < 1000); // Filtra números que podem ser episódios (1 a 999)
-        // Prioriza números que não parecem ser anos ou resoluções
-        const filteredEpisodes = potentialEpisodes.filter(n => {
-            const numStr = String(n);
-            if (numStr.length === 4 && n >= 1900 && n <= 2100)
-                return false; // Evita anos
-            // Adicione mais filtros se necessário (ex: 1080, 720, etc. se estiverem em nomes de arquivo soltos)
-            return true;
-        });
-        // Se há apenas um número plausível, pode ser o episódio
-        if (filteredEpisodes.length === 1) {
-            episode = filteredEpisodes[0];
-            return { episode };
-        }
-        // Se houver mais de um, é mais complexo, mas para este cenário, vamos pegar o último
-        if (filteredEpisodes.length > 1) {
-            episode = filteredEpisodes[filteredEpisodes.length - 1];
-            return { episode };
+exports.parseEpisodeInfo = parseEpisodeInfo;
+function parseEpisodeInfo(filename, targetSeasonFromHint) {
+    filename = filename.replace(/_/g, ' ').trim();
+    // 🔍 1. Procurar padrões formais (S05E01, 5x01, Season 5 Episode 1)
+    const patterns = [
+        /S(\d{1,2})E(\d{1,2})/i, // S05E01
+        /(\d{1,2})x(\d{1,2})/i, // 5x01
+        /Season[\s._-]*(\d{1,2})[\s._-]*Episode[\s._-]*(\d{1,2})/i // Season 5 Episode 1
+    ];
+    for (const pattern of patterns) {
+        const match = filename.match(pattern);
+        if (match) {
+            return {
+                season: parseInt(match[1]),
+                episode: parseInt(match[2]),
+            };
         }
     }
-    return {};
+    // 🔍 2. Procurar padrão de 'V' (temporada em romano/simples)
+    const vMatch = filename.match(/(?:V|S|Season)[\s:.]*([0-9IVXLCDM]+)\b/i);
+    let season = null;
+    if (vMatch) {
+        const rawSeason = vMatch[1];
+        if (/^\d+$/.test(rawSeason)) {
+            season = parseInt(rawSeason);
+        }
+        else {
+            // Converter números romanos para decimal
+            season = romanToDecimal(rawSeason.toUpperCase());
+        }
+    }
+    // 🔍 3. Procurar número após hífen, dois pontos ou espaço
+    const epMatch = filename.match(/[-:]\s*(\d{1,2})\b/)
+        || filename.match(/\bEpisode\s*(\d{1,2})\b/i)
+        || filename.match(/\bEp\s*(\d{1,2})\b/i);
+    if (season !== null && epMatch) {
+        return {
+            season,
+            episode: parseInt(epMatch[1]),
+        };
+    }
+    // 🔍 4. Caso não tenha V/S, tentar match básico do final do nome
+    if (!season) {
+        const simpleMatch = filename.match(/[-\s._](\d{1,2})\b/);
+        if (simpleMatch) {
+            return {
+                season: 1,
+                episode: parseInt(simpleMatch[1]),
+            };
+        }
+    }
+    // 🚫 Não encontrou
+    return null;
 }
-// ... (sua função processMagnetForStreaming com a correção de escopo da selectedFileId) ...
-// ... (todas as outras funções exportadas) ...
+// 🔢 Função auxiliar: converter número romano para decimal
+function romanToDecimal(roman) {
+    const map = {
+        M: 1000,
+        D: 500,
+        C: 100,
+        L: 50,
+        X: 10,
+        V: 5,
+        I: 1,
+    };
+    let value = 0;
+    let prev = 0;
+    for (let i = roman.length - 1; i >= 0; i--) {
+        const current = map[roman[i]];
+        if (current < prev) {
+            value -= current;
+        }
+        else {
+            value += current;
+        }
+        prev = current;
+    }
+    return value;
+}

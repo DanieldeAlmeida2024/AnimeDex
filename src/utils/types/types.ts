@@ -47,6 +47,7 @@ export interface ScrapedStream {
     title?: string; // Título opcional (pode ser o nome do fansub ou da release)
     quality?: string; // Qualidade do vídeo (ex: "1080p", "720p", "480p")
     magnet?: string;
+    animeFire?: string;
     // Para streams diretos, pode adicionar:
     // ytId?: string;
     // externalUrl?: string;
@@ -67,37 +68,15 @@ export interface ScrapedStream {
     }[];
 }
 
-export interface TmdbFindResponse {
-    movie_results: {
-        title: string;
-        name?: string; // Para séries
-        release_date?: string;
-        first_air_date?: string; // Para séries
-        poster_path?: string;
-        backdrop_path?: string;
-        overview?: string;
-        genre_ids?: number[];
-    }[];
-    tv_results: {
-        parts: {
-            title?: string;
-            id: number;
-            original_language: string;
-            original_title?: string; 
-            poster_path?: string;
-            release_date?: string;
-            
-        };
-        name: string;
-        title?: string; // Para filmes
-        first_air_date?: string;
-        release_date?: string;
-        poster_path?: string;
-        backdrop_path?: string;
-        overview?: string;
-        genre_ids?: number[];
-    }[];
+interface animeFireScrapedStream extends ScrapedStream {
+    seeders?: number;
+    leechers?: number;
+    size?: string;
+    uploadDate?: string;
+    behaviorHints?: Record<string, any>;
 }
+
+/* Removed duplicate TmdbFindResponse interface to resolve type conflicts. */
 
 export type EpisodeInfo = {
     season: number;
@@ -111,6 +90,7 @@ export type ScrapedEpisodeTorrent = {
   magnet: string;
   source?: string;
   url?: string; // URL da página do torrent, se disponível
+  animeFireStream?: string;
 };
 
 export type Meta = {
@@ -137,6 +117,7 @@ export type Stream = {
     name?: string;
     title?: string;
     url: string;
+    magnet?: string;
 };
 
 export interface ScrapedTorrentStream extends ScrapedStream {
@@ -302,3 +283,80 @@ export type ListData<AdditionalDetails extends (DetailsOptions | boolean)> = {
 }
 
 export type AdditionalDetails = DetailsOptions | boolean;
+
+export interface TmdbMovieResult {
+    adult: boolean;
+    backdrop_path: string | null;
+    genre_ids: number[];
+    id: number;
+    original_language: string;
+    original_title: string;
+    overview: string;
+    popularity: number;
+    poster_path: string | null;
+    release_date: string; // YYYY-MM-DD format
+    title: string;
+    video: boolean;
+    vote_average: number;
+    vote_count: number;
+}
+
+// Interface for the full TMDB movie search response
+export interface TmdbSearchMovieResponse {
+    page: number;
+    results: TmdbMovieResult[];
+    total_pages: number;
+    total_results: number;
+}
+
+// Base interface for a TV show result in TMDB search
+export interface TmdbTvResult {
+    backdrop_path: string | null;
+    first_air_date: string; // YYYY-MM-DD format
+    genre_ids: number[];
+    id: number;
+    name: string;
+    origin_country: string[];
+    original_language: string;
+    original_name: string;
+    overview: string;
+    popularity: number;
+    poster_path: string | null;
+    vote_average: number;
+    vote_count: number;
+}
+
+// Interface for the full TMDB TV show search response
+export interface TmdbSearchTvResponse {
+    page: number;
+    results: TmdbTvResult[];
+    total_pages: number;
+    total_results: number;
+}
+
+// TmdbFindResponse (already in your code but here for completeness of TMDB types)
+export interface TmdbFindResponse {
+    movie_results?: TmdbMovieResult[];
+    tv_results?: TmdbTvResult[];
+    person_results: any[]; // You might want to define this more specifically if needed
+    tv_episode_results: any[];
+    tv_season_results: any[];
+}// TmdbFindResponse for TMDB types
+export interface TmdbFindResponse {
+    movie_results?: TmdbMovieResult[];
+    tv_results?: TmdbTvResult[];
+    person_results: any[]; // You might want to define this more specifically if needed
+    tv_episode_results: any[];
+    tv_season_results: any[];
+}
+
+export type TmdbResponseApi = {
+    id: number,
+    title: string,
+    poster?: string,
+    background?: string,
+    genres?: string[],
+    releaseYear?: number,
+    description?: string,
+    type: "movie" | "series"
+} | null;

@@ -11,15 +11,6 @@ exports.manifest = {
     idPrefixes: ['tt', 'kitsu'],
     catalogs: [
         {
-            type: 'series',
-            id: 'animedex_lancamentos_series_catalog',
-            name: 'AnimeDex (Lançamentos)',
-            extra: [
-                { name: 'search', isRequired: false },
-                { name: 'skip', isRequired: false }
-            ]
-        },
-        {
             type: 'movie',
             id: 'animedex_lancamentos_movies_catalog',
             name: 'AnimeDex Filmes (Lançamentos)',
@@ -47,7 +38,34 @@ exports.manifest = {
             ]
         },
         {
-            type: 'series', // Assumindo que 'lista-de-animes-legendados' é para séries
+            type: 'series',
+            id: 'animedex_series_catalog',
+            name: 'AnimeDex (Top)',
+            extra: [
+                { name: 'search', isRequired: false },
+                { name: 'skip', isRequired: false }
+            ]
+        },
+        {
+            type: 'series',
+            id: 'animedex_atualizados_series_catalog',
+            name: 'AnimeDex (Atualizados)',
+            extra: [
+                { name: 'search', isRequired: false },
+                { name: 'skip', isRequired: false }
+            ]
+        },
+        {
+            type: 'movie',
+            id: 'animedex_atualizados_movies_catalog',
+            name: 'AnimeDex Filmes (Atualizados)',
+            extra: [
+                { name: 'search', isRequired: false },
+                { name: 'skip', isRequired: false }
+            ]
+        },
+        {
+            type: 'series',
             id: 'animedex_legendados_series_catalog',
             name: 'AnimeDex (Legendados)',
             extra: [
@@ -56,7 +74,7 @@ exports.manifest = {
             ]
         },
         {
-            type: 'movie', // Assumindo que 'lista-de-filmes-legendados' é para filmes
+            type: 'movie',
             id: 'animedex_legendados_movies_catalog',
             name: 'AnimeDex Filmes (Legendados)',
             extra: [
