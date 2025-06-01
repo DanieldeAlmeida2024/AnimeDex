@@ -23,7 +23,8 @@ model Anime {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   stremioId       String?  // Pode ser igual ao imdbId, ou um ID interno do Stremio
-  lastSearchedAt  DateTime @default(now())
+  lastSearchedAt DateTime? // Add this line if not present
+
 
 }
 

@@ -1,1 +1,1 @@
-export const TORRENT_ANIME_URL = 'https://nyaa.land/?f=0&c=0_0&q=';
+export const TORRENT_ANIME_URL = 'https://nyaa.land';

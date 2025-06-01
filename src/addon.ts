@@ -43,7 +43,7 @@ builder.defineStreamHandler(async ({ id, type }: { id: string; type: string }) =
                         genres: tmdbInfo.genres ? JSON.stringify(tmdbInfo.genres) : null,
                         releaseYear: tmdbInfo.releaseYear,
                         description: tmdbInfo.description,
-                        type: tmdbInfo.type,
+                        type: tmdbInfo.type ?? '',
                         stremioId: id,
                         lastSearchedAt: new Date(),
                     }
@@ -62,15 +62,15 @@ builder.defineStreamHandler(async ({ id, type }: { id: string; type: string }) =
         const episodesData: ScrapedEpisodeTorrent[] = animeRecord?.episodesData ? JSON.parse(animeRecord.episodesData) : [];
         const existing = episodesData.find(ep =>
             (ep.season ?? null) === (targetSeason ?? null) &&
-            (ep.episode ?? null) === (targetEpisode ?? null)
+            (ep.episode ?? null) === (targetEpisode ?? null) &&
+            (ep.url != '' || ep.url != null || ep.url != undefined)
         );
 
         if (existing) {
             streams.push({
                 name: existing.source ?? 'Real-Debrid',
                 title: existing.title,
-                url: existing.magnet,
-                magnet: existing.magnet
+                url: existing.url ?? ''
             });
             return { streams };
         }
@@ -82,23 +82,25 @@ builder.defineStreamHandler(async ({ id, type }: { id: string; type: string }) =
             season: targetSeason,
             episode: targetEpisode,
         };
-
         const magnetLinks = await scrapeMagnetLinks(scrapeOptions);
 
         for (const link of magnetLinks) {
+            if(link.url == ''){
+                continue;
+            }
             streams.push({
                 name: 'Real-Debrid',
                 title: link.title ?? '',
-                url: link.magnet,
-                magnet: link.magnet
+                url: link.url
             });
 
             episodesData.push({
                 season: targetSeason,
                 episode: targetEpisode,
                 title: link.title ?? '',
-                magnet: link.magnet,
-                source: 'Real-Debrid'
+                magnet: link.magnet ?? '',
+                source: 'Real-Debrid',
+                url: link.url ?? ''
             });
         }
 

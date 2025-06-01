@@ -31,6 +31,7 @@ export async function getDarkMahouAnimePageUrl(
 
         const article = $('article.bs');
         const pageUrl = article.find('div > a').attr('href');
+        console.log(`Anime Encontrado DarkMahou:`);
 
         serieUrl = pageUrl ?? '';
     } catch (error: any) {
@@ -39,7 +40,7 @@ export async function getDarkMahouAnimePageUrl(
     return serieUrl;
 }
 
-export async function searchAnimeTorrents(animeTitle: string, targetSeason?: number, targetEpisode?: number): Promise<ScrapedTorrentStream[]> {
+export async function searchAnimeTorrentsDarkmahou(animeTitle: string, targetSeason?: number, targetEpisode?: number): Promise<ScrapedTorrentStream[]> {
     const streams: ScrapedTorrentStream[] = [];
     
     const animePageUrl = await getDarkMahouAnimePageUrl(animeTitle);
@@ -140,7 +141,8 @@ export async function searchAnimeTorrents(animeTitle: string, targetSeason?: num
                             name: streamName,
                             title: streamTitle,
                             url: directUrl,
-                            magnet: directUrl
+                            magnet: directUrl,
+                            
                         });
                     } else {
                         // Original magnet link is not added as fallback, adhering to clean refactor and RD focus.
