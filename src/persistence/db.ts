@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { ScrapedAnimeAnimeFire, TmdbResponseApi } from '../utils/types/types';
+import { AnimeScrapedAnimeFireDb, ScrapedAnimeAnimeFire, TmdbResponseApi } from '../utils/types/types';
 const prisma = new PrismaClient();
 
 export async function updateDateDataBase(tmdbInfo: TmdbResponseApi){
     prisma.anime.update({
-        where: { id: tmdbInfo?.id },
+        where: { imdbId: tmdbInfo?.id?.toString() },
         data: { lastSearchedAt: new Date() }
     });
 }
@@ -33,9 +33,10 @@ export async function createAnimeOnDataBase(
                 genres: tmdbInfo.genres ? JSON.stringify(tmdbInfo.genres) : null,
                 releaseYear: tmdbInfo.releaseYear,
                 description: tmdbInfo.description,
-                type: tmdbInfo.type ?? '',
+                type: '',
                 stremioId: `tt${tmdbInfo.id}`,
                 lastSearchedAt: new Date(),
+                animefireUrl: '', 
             }
         });
 }
@@ -45,22 +46,35 @@ export async function saveAnimesToDatabase(
     scrapedAnime: ScrapedAnimeAnimeFire) {
     try {
             await prisma.anime.upsert({
-                where: { animefireUrl: scrapedAnime.animefireUrl },
+                where: { imdbId: `tt${tmdbInfo?.id}` },
                 update: {
                     title: scrapedAnime.title,
                     poster: tmdbInfo?.poster || scrapedAnime.poster,
-                    type: tmdbInfo?.type ?? scrapedAnime.type,
-                    updatedAt: new Date()
+                    type: scrapedAnime.type,
+                    updatedAt: new Date(),
+                    secoundName: scrapedAnime.secoundName,
+                    description: tmdbInfo?.description,
+                    background: tmdbInfo?.background,
+                    genres: tmdbInfo?.genres ? JSON.stringify(tmdbInfo.genres) : null,
+                    releaseYear: tmdbInfo?.releaseYear || scrapedAnime.releaseYear
                 },
                 create: {
                     title: scrapedAnime.title,
-                    poster: scrapedAnime.poster,
-                    type: tmdbInfo?.type ?? scrapedAnime.type,
+                    poster: tmdbInfo?.poster,
+                    type: scrapedAnime.type,
                     animefireUrl: scrapedAnime.animefireUrl,
                     imdbId: `tt${tmdbInfo?.id}`, // Provide a default or actual imdbId if available
+                    stremioId: `tt${tmdbInfo?.id}`, // Add stremioId as required by AnimeCreateInput
+                    secoundName: scrapedAnime.secoundName,
+                    description: tmdbInfo?.description,
+                    background: tmdbInfo?.background,
+                    genres: scrapedAnime.genres ? JSON.stringify(scrapedAnime.genres) : null,
+                    releaseYear: tmdbInfo?.releaseYear || scrapedAnime.releaseYear
                 }
             });
+            return await findFirstDataBase(tmdbInfo);
     } catch (e: any) {
+        return false
     }
 }
 
@@ -73,6 +87,3 @@ export async function findUnique(animefireUrlBase: string) {
     });
 
 }
-
-
-

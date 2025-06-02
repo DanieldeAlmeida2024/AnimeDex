@@ -1,9 +1,12 @@
-import { Meta } from '../../utils/types/types';
+import { Meta, ScrapedEpisodeAnimeFire } from '../../utils/types/types';
 import { PROVIDER_URL } from './constants/url';
 import { ScrapedAnimeAnimeFire } from '../../utils/types/types';
 import { scrapeAtualizadosAnimes, scrapeDubladosAnimes, scrapeLegendadosAnimes, scrapeTopAnimes,scrapeRecentAnimes, searchAnimes, scrapeAnimeDetails, scrapeStreamsFromContentPage } from './services/animeFireScraper';
-import {  getTmdbInfoByName } from '../../utils/tmdbApi';
-import { createAnimeOnDataBase, findFirstDataBase, saveAnimesToDatabase, updateDateDataBase } from '../../persistence/db';
+import {  getTmdbInfoByImdbId, getTmdbInfoByName } from '../../utils/tmdbApi';
+import {  findUnique, saveAnimesToDatabase } from '../../persistence/db';
+import { getImdbIdFromAniList } from '../../utils/aniListApi';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 const BASE_URL = PROVIDER_URL;
 
 export async function animeFireHeadler(
@@ -13,12 +16,11 @@ export async function animeFireHeadler(
 			{ search?: string; skip?: string } 
 		}
 	): Promise<{ metas: Meta[] }> {
-		console.log(`[ADDON ANIMEFIRE]Type: ${type}, id: ${id}, extra: ${extra}`);
 		const { search, skip } = extra;
 		const page = skip ? Math.floor(parseInt(skip) / 20) + 1 : 1;
 		let scrapedAnimes: ScrapedAnimeAnimeFire[] = [];
 		if (search?.search) { 
-			scrapedAnimes = await searchAnimes(search, type as 'movie' | 'series');
+			scrapedAnimes = await searchAnimes(search, page);
 		}else{
 			switch (id) {
 				case 'animedex_series_catalog': 
@@ -33,7 +35,7 @@ export async function animeFireHeadler(
 				case 'animedex_lancamentos_series_catalog':
 					scrapedAnimes = await scrapeAtualizadosAnimes(type as 'series', page);
 					break;
-				case 'animedex_atualizado_series_catalog':
+				case 'animedex_atualizados_series_catalog':
 					scrapedAnimes = await scrapeAtualizadosAnimes(type as 'series', page);
 					break;
 				case 'animedex_atualizados_movies_catalog':
@@ -53,35 +55,139 @@ export async function animeFireHeadler(
 					break;
 			}
 		}
+		const metas: Meta[] = [];
 		for (const scrapedAnime of scrapedAnimes) {
-			//pesquisa imdb
-			let animeName: string | undefined;
-			let animeRecord;
-			const tmdbInfo = await getTmdbInfoByName(scrapedAnime.title);
 			try {
-				animeRecord = await findFirstDataBase(tmdbInfo);
-				if (!animeRecord) {
-					if (tmdbInfo) {
-						animeRecord = await createAnimeOnDataBase(tmdbInfo);
-					} 
-				} else if (animeRecord) {
-					if (animeRecord && animeRecord.id) {
-						await updateDateDataBase(tmdbInfo);
-					}
-					animeName = animeRecord.title;
+				let finalInfoForDatabase: any | null = null; 
+				let foundImdbId: string | null = null;
+				let foundTmdbInfoFromAniList: any | null = null; 
+
+				foundImdbId = await getImdbIdFromAniList(scrapedAnime.title, scrapedAnime.type as 'movie' | 'series');
+
+				if (foundImdbId) {
+					foundTmdbInfoFromAniList = await getTmdbInfoByImdbId(foundImdbId);
 				}
-				await saveAnimesToDatabase(tmdbInfo,scrapedAnime);
-		}catch (e:any){
+
+				if (foundTmdbInfoFromAniList) {
+					finalInfoForDatabase = foundTmdbInfoFromAniList;
+					console.log(`[ADDON ANIMEFIRE] Usando TMDB info encontrada via AniList para "${finalInfoForDatabase.title}".`);
+				} else {
+					console.log(`[ADDON ANIMEFIRE] TMDB info não encontrada via AniList ID. Tentando buscar no TMDB por nome principal: "${scrapedAnime.title}".`);
+					finalInfoForDatabase = await getTmdbInfoByName(scrapedAnime.title);
+
+					if (!finalInfoForDatabase && scrapedAnime.secoundName) {
+						let searchTitleForTmdb = scrapedAnime.secoundName;
+						if (searchTitleForTmdb.includes(':')) {
+							searchTitleForTmdb = searchTitleForTmdb.split(':')[0].trim();
+						} else {
+							const words = searchTitleForTmdb.split(' ');
+							searchTitleForTmdb = words.slice(0, 3).join(' ').trim();
+						}
+						finalInfoForDatabase = await getTmdbInfoByName(searchTitleForTmdb);
+					}
+				}
+
+				let savedAnimeRecord: any | null = null;
+
+				if (finalInfoForDatabase) {
+					savedAnimeRecord = await saveAnimesToDatabase(finalInfoForDatabase, scrapedAnime);
+				} else {
+				}
+
+				if (savedAnimeRecord) {
+					const metaId = savedAnimeRecord.stremioId || `animefire_${scrapedAnime.type}_${encodeURIComponent(scrapedAnime.animefireUrl)}`;
+					metas.push({
+						id: metaId,
+						type: savedAnimeRecord.type as 'movie' | 'series',
+						name: savedAnimeRecord.title,
+						poster: savedAnimeRecord.poster || savedAnimeRecord.background || undefined,
+						description: savedAnimeRecord.description || '',
+						genres: savedAnimeRecord.genres ? JSON.parse(savedAnimeRecord.genres) : [],
+						releaseInfo: savedAnimeRecord.releaseYear?.toString(),
+						background: savedAnimeRecord.background || savedAnimeRecord.poster || undefined,
+					});
+				}
+
+			} catch (e: any) {
+				console.error(`[ADDON ANIMEFIRE] Erro ao processar anime "${scrapedAnime.title}": ${e.message}`);
+			}
 		}
-		const metas: Meta[] = scrapedAnimes.map(anime => ({
-			id: `animefire_${anime.type}_${encodeURIComponent(anime.animefireUrl)}`,
-			type: anime.type,
-			name: anime.title,
-			poster: anime.poster ?? undefined,
-			description: '',
-			genres: [],
-		}));
-		return { metas };
-	}
-	return { metas: [] };
+	return { metas };
+}
+
+export async function animeFireMetaHeadler({ id, type }: { id: string; type: string }): Promise<{ meta: Meta }>{
+const decodedAnimefireUrl = decodeURIComponent(id.replace(`animefire_${type}_`, ''));
+    if (!decodedAnimefireUrl || !decodedAnimefireUrl.startsWith(BASE_URL)) {
+        return Promise.reject(new Error('ID de anime inválido ou URL base incorreta.'));
+    }
+
+    let anime = await findUnique(decodedAnimefireUrl);
+
+    if (!anime || !anime.description || !anime.episodesData || anime.updatedAt.getTime() < Date.now() - 24 * 60 * 60 * 1000) {
+        const details = await scrapeAnimeDetails(decodedAnimefireUrl);
+
+        if (details) {
+            const genresAsString = details.genres ? details.genres.join(',') : null;
+            anime = await prisma.anime.upsert({
+                where: { animefireUrl: decodedAnimefireUrl },
+                update: {
+                    description: details.description,
+                    genres: genresAsString,
+                    releaseYear: details.releaseYear,
+                    updatedAt: new Date(),
+                    poster: details.poster ?? anime?.poster,
+                    title: details.title ?? anime?.title,
+                    type: type,
+                    background: details.background,
+                    episodesData: details.episodes ? JSON.stringify(details.episodes) : null,
+                },
+                create: {
+                    id: decodedAnimefireUrl,
+                    title: details.title ?? 'Unknown Title',
+                    type: type,
+                    animefireUrl: decodedAnimefireUrl,
+                    description: details.description,
+                    genres: genresAsString,
+                    releaseYear: details.releaseYear,
+                    background: details.background,
+                    poster: details.poster,
+                    episodesData: details.episodes ? JSON.stringify(details.episodes) : null,
+                    imdbId: decodedAnimefireUrl,
+                    stremioId: decodedAnimefireUrl,
+                }
+            });
+        } else {
+            console.warn(`Could not scrape details for ${decodedAnimefireUrl}.`);
+            if (!anime) {
+                return Promise.reject(new Error('Detalhes do anime não encontrados após scraping.'));
+            }
+        }
+    } else {
+    }
+
+    if (!anime) {
+        return Promise.reject(new Error('Anime não encontrado.'));
+    }
+
+    const genresAsArray = anime.genres ? anime.genres.split(',') : [];
+    const episodesFromDb: ScrapedEpisodeAnimeFire[] = anime.episodesData ? JSON.parse(anime.episodesData) : [];
+    const meta: Meta = {
+        id: id,
+        type: anime.type,
+        name: anime.title,
+        poster: anime.poster ?? undefined,
+        description: anime.description ?? undefined,
+        genres: genresAsArray,
+        releaseInfo: anime.releaseYear !== null ? anime.releaseYear : undefined,
+        background: anime.background ?? undefined,
+        videos: type === 'series' && episodesFromDb.length > 0 ? episodesFromDb.map(ep => ({
+            id: ep.id,
+            title: ep.title,
+            season: ep.season,
+            episode: ep.episode,
+            released: ep.released,
+        })) : undefined,
+    };
+
+    return Promise.resolve({ meta });
 }

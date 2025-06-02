@@ -7,7 +7,7 @@ import { setRealDebridAuthToken } from './utils/realDebridApi';
 import { PrismaClient } from '@prisma/client';
 import { getTmdbInfoByImdbId } from './utils/tmdbApi';
 import { scrapeMagnetLinks } from './services/scraper';
-import { animeFireHeadler } from './providers/animeFire/addon';
+import { animeFireHeadler, animeFireMetaHeadler } from './providers/animeFire/addon';
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -19,18 +19,18 @@ const builder = addonBuilder(manifest);
 
 builder.defineCatalogHandler(async ({ type, id, extra }: { type: string; id: string; extra: { search?: string; skip?: string } }) => {
     const metas = await animeFireHeadler({type, id, extra});
-    console.log(`[ADDON SRC]Type: ${type}, id: ${id}, extra: ${extra}`);
-    return Promise.resolve({ metas });
+    return Promise.resolve( metas );
 });
 
-builder.defineMetaHandler(async (id: string) => ({
-    
-}));
+builder.defineMetaHandler(async ({ id, type }: { id: string; type: string }) => {
+
+     const meta = animeFireMetaHeadler({id , type});
+     return Promise.resolve( meta );
+ });
 
 builder.defineStreamHandler(async ({ id, type }: { id: string; type: string }) => {
     let streams: ScrapedStream[] = [];
     const [imdbId, seasonStr, episodeStr] = id.split(':');
-    console.log(id)
     const targetSeason = seasonStr ? parseInt(seasonStr, 10) : undefined;
     const targetEpisode = episodeStr ? parseInt(episodeStr, 10) : undefined;
 
@@ -57,6 +57,7 @@ builder.defineStreamHandler(async ({ id, type }: { id: string; type: string }) =
                         type: tmdbInfo.type ?? '',
                         stremioId: id,
                         lastSearchedAt: new Date(),
+                        animefireUrl: '', // Provide a default value or fetch the actual URL if available
                     }
                 });
             } 

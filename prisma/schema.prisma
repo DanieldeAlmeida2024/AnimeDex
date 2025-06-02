@@ -9,23 +9,22 @@ datasource db {
 }
 
 model Anime {
-  id              Int      @id @default(autoincrement())
-  imdbId          String   @unique
-  title           String // Agora será preenchido pela TMDB
-  poster          String?  // Pode vir nulo da TMDB
-  animefireUrl    String?  @unique // Opcional: Se nem sempre tem uma URL AnimeFire
+  id              String    @id @default(uuid())
+  imdbId          String    @unique // <-- This is crucial! Make it unique.
+  animefireUrl    String    @unique // <-- Keep this unique as well, it helps finding by original source.
+  stremioId       String    @unique // <-- This should also be unique and is used by Stremio
+  title           String
+  type            String // "movie" or "series"
   description     String?
-  genres          String?  // JSON string de array de strings (salvar como string)
+  poster          String?
+  background      String?
+  genres          String? // Stored as JSON string
   releaseYear     Int?
-  background      String?  // URL da imagem de fundo
-  type            String?  // "movie" ou "series" - Pode vir nulo
-  episodesData    String?  // JSON string de ScrapedEpisode[] - SEM @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  stremioId       String?  // Pode ser igual ao imdbId, ou um ID interno do Stremio
-  lastSearchedAt DateTime? // Add this line if not present
-
-
+  episodesData    String? // Stored as JSON string of ScrapedEpisode[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastSearchedAt  DateTime  @default(now())
+  secoundName     String?    
 }
 
 // Se você tem um modelo chamado 'ScrapedTorrent' ou similar que contenha 'episodesData'
