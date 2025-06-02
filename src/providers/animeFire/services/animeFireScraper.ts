@@ -184,7 +184,6 @@ async function getAnimeInfo(urlAnimeFire: string): Promise<{animeName: string, s
         animeName = $('div.div_anime_names > h1.mb-0').text().trim();
         secoundName = $('div.div_anime_names > h6.mb-0').text().trim();
         description = $('div.divSinopse > span.spanAnimeInfo').text().trim();
-
         animeName = animeName.replace(/[^a-zA-ZáàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, '');
         secoundName = secoundName.replace(/[^a-zA-ZáàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, '');
         secoundName = secoundName.replace(/season|Temporada/gi, '').trim();

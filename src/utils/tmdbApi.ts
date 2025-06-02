@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { TmdbFindResponse, TmdbSearchMovieResponse, TmdbSearchTvResponse } from './types/types';
+import { AniListMedia, TmdbFindResponse, TmdbSearchMovieResponse, TmdbSearchTvResponse } from './types/types';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || ''; 
 
@@ -46,53 +46,68 @@ export async function getTmdbInfoByImdbId(imdbId: string): Promise<{ title: stri
     }
 }
 
-export async function getTmdbInfoByName(name: string, type?: "movie" | "series"): Promise<{id: number, title: string; poster?: string; background?: string; genres?: string[]; releaseYear?: number; description?: string; type: "movie" | "series" } | null> {
+export async function getTmdbInfoByName(aniListMedia: AniListMedia, name: string, type?: "movie" | "series"): Promise<{id: number, title: string; poster?: string; background?: string; genres?: string[]; releaseYear?: number; description?: string; type: "movie" | "series" } | null> {
+    // Provide a default type if undefined
+    const resolvedType: "movie" | "series" = type ?? "series";
+    let releaseYearAniList = aniListMedia.startDate.year.toString();
     try {
-        if (type === "movie" || !type) {
-            const movieResponse = await axios.get<TmdbSearchMovieResponse>(`https://api.themoviedb.org/3/search/movie`, {
-                params: {
-                    api_key: TMDB_API_KEY,
-                    query: name
-                }
-            });
+    if (type === "movie" || !type) {
+        const movieResponse = await axios.get<TmdbSearchMovieResponse>(`https://api.themoviedb.org/3/search/movie`, {
+            params: {
+                api_key: TMDB_API_KEY,
+                query: name
+            }
+        });
 
-            if (movieResponse.data.results && movieResponse.data.results.length > 0) {
-                const movie = movieResponse.data.results[0];
-                return {
-                    id: movie.id,
-                    title: movie.title,
-                    poster: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
-                    background: movie.backdrop_path ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}` : undefined,
-                    genres: movie.genre_ids ? movie.genre_ids.map(id => id.toString()) : undefined,
-                    releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-                    description: movie.overview || undefined,
-                    type: "movie"
-                };
+        if (movieResponse.data.results && movieResponse.data.results.length > 0) {
+            // Loop through movie results and validate release year
+            for (const movie of movieResponse.data.results) {
+                const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : undefined;
+
+                if (releaseYear && releaseYear.toString() === releaseYearAniList) { // Validate releaseYear
+                    return {
+                        id: movie.id,
+                        title: movie.title,
+                        poster: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
+                        background: movie.backdrop_path ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}` : undefined,
+                        genres: movie.genre_ids ? movie.genre_ids.map(id => id.toString()) : undefined,
+                        releaseYear: releaseYear,
+                        description: movie.overview || undefined,
+                        type: "movie"
+                    };
+                }
             }
         }
+    }
 
-        if (type === "series" || !type) {
-            const tvResponse = await axios.get<TmdbSearchTvResponse>(`https://api.themoviedb.org/3/search/tv`, {
-                params: {
-                    api_key: TMDB_API_KEY,
-                    query: name
+    if (type === "series" || !type) {
+        const tvResponse = await axios.get<TmdbSearchTvResponse>(`https://api.themoviedb.org/3/search/tv`, {
+            params: {
+                api_key: TMDB_API_KEY,
+                query: name
+            }
+        });
+
+        if (tvResponse.data.results && tvResponse.data.results.length > 0) {
+            // Loop through TV show results and validate release year
+            for (const tvShow of tvResponse.data.results) {
+                const releaseYear = tvShow.first_air_date ? new Date(tvShow.first_air_date).getFullYear() : undefined;
+
+                if (releaseYear && releaseYear.toString() === releaseYearAniList) { // Validate releaseYear
+                    return {
+                        id: tvShow.id,
+                        title: tvShow.name || '',
+                        poster: tvShow.poster_path ? `https://image.tmdb.org/t/p/w500${tvShow.poster_path}` : undefined,
+                        background: tvShow.backdrop_path ? `https://image.tmdb.org/t/p/original${tvShow.backdrop_path}` : undefined,
+                        genres: tvShow.genre_ids ? tvShow.genre_ids.map(id => id.toString()) : undefined,
+                        releaseYear: releaseYear,
+                        description: tvShow.overview || undefined,
+                        type: "series"
+                    };
                 }
-            });
-
-            if (tvResponse.data.results && tvResponse.data.results.length > 0) {
-                const tvShow = tvResponse.data.results[0];
-                return {
-                    id: tvShow.id,
-                    title: tvShow.name || '',
-                    poster: tvShow.poster_path ? `https://image.tmdb.org/t/p/w500${tvShow.poster_path}` : undefined,
-                    background: tvShow.backdrop_path ? `https://image.tmdb.org/t/p/original${tvShow.backdrop_path}` : undefined,
-                    genres: tvShow.genre_ids ? tvShow.genre_ids.map(id => id.toString()) : undefined,
-                    releaseYear: tvShow.first_air_date ? new Date(tvShow.first_air_date).getFullYear() : undefined,
-                    description: tvShow.overview || undefined,
-                    type: "series"
-                };
             }
         }
+    }
         
         return null;
 

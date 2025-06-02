@@ -19,6 +19,7 @@ const builder = addonBuilder(manifest);
 
 builder.defineCatalogHandler(async ({ type, id, extra }: { type: string; id: string; extra: { search?: string; skip?: string } }) => {
     const metas = await animeFireHeadler({type, id, extra});
+    console.log(metas)
     return Promise.resolve( metas );
 });
 

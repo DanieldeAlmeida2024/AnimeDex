@@ -393,3 +393,40 @@ export type TmdbResponseApi = {
     description?: string,
     type: "movie" | "series"
 } | null;
+
+export interface AniListTitle {
+    romaji: string;
+    english: string | null;
+    native: string | null;
+}
+
+export interface AniListExternalLink {
+    url: string;
+    site: string;
+}
+
+export interface AniListMedia {
+    id: number;
+    title: AniListTitle;
+    type: 'ANIME' | 'MANGA';
+    format: string; // Ex: TV, MOVIE, OVA, ONA, SPECIAL
+    genres: string[];
+    description: string | null;
+    startDate: {
+        year: number;
+    };
+    coverImage: {
+        large: string;
+    };
+    bannerImage: string | null;
+    externalLinks: AniListExternalLink[];
+    status: string;
+}
+
+export interface AniListResponse {
+    data: {
+        Page: {
+            media: AniListMedia[];
+        };
+    };
+}

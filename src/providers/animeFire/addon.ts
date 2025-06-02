@@ -4,7 +4,7 @@ import { ScrapedAnimeAnimeFire } from '../../utils/types/types';
 import { scrapeAtualizadosAnimes, scrapeDubladosAnimes, scrapeLegendadosAnimes, scrapeTopAnimes,scrapeRecentAnimes, searchAnimes, scrapeAnimeDetails, scrapeStreamsFromContentPage } from './services/animeFireScraper';
 import {  getTmdbInfoByImdbId, getTmdbInfoByName } from '../../utils/tmdbApi';
 import {  findUnique, saveAnimesToDatabase } from '../../persistence/db';
-import { getImdbIdFromAniList } from '../../utils/aniListApi';
+import { getAnimeFromAniList } from '../../utils/aniListApi';
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 const BASE_URL = PROVIDER_URL;
@@ -62,49 +62,90 @@ export async function animeFireHeadler(
 				let foundImdbId: string | null = null;
 				let foundTmdbInfoFromAniList: any | null = null; 
 
-				foundImdbId = await getImdbIdFromAniList(scrapedAnime.title, scrapedAnime.type as 'movie' | 'series');
+				const foundDb = await findUnique(scrapedAnime.animefireUrl);
 
-				if (foundImdbId) {
-					foundTmdbInfoFromAniList = await getTmdbInfoByImdbId(foundImdbId);
-				}
+				if(!foundDb){
+					const aniListMedia = await getAnimeFromAniList(scrapedAnime.secoundName || '', scrapedAnime.title || '', scrapedAnime.type as 'movie' | 'series');
+					let imdb_id;
 
-				if (foundTmdbInfoFromAniList) {
-					finalInfoForDatabase = foundTmdbInfoFromAniList;
-					console.log(`[ADDON ANIMEFIRE] Usando TMDB info encontrada via AniList para "${finalInfoForDatabase.title}".`);
-				} else {
-					console.log(`[ADDON ANIMEFIRE] TMDB info não encontrada via AniList ID. Tentando buscar no TMDB por nome principal: "${scrapedAnime.title}".`);
-					finalInfoForDatabase = await getTmdbInfoByName(scrapedAnime.title);
+					const imdbLink = aniListMedia && aniListMedia.externalLinks?.find(link => link.site === 'IMDb');
 
-					if (!finalInfoForDatabase && scrapedAnime.secoundName) {
-						let searchTitleForTmdb = scrapedAnime.secoundName;
-						if (searchTitleForTmdb.includes(':')) {
-							searchTitleForTmdb = searchTitleForTmdb.split(':')[0].trim();
-						} else {
-							const words = searchTitleForTmdb.split(' ');
-							searchTitleForTmdb = words.slice(0, 3).join(' ').trim();
+					if (imdbLink) {
+						const match = imdbLink.url.match(/title\/(tt\d+)/);
+						if (match && match[1]) {
+							const imdbId = match[1];
+							imdb_id = imdbId;
 						}
-						finalInfoForDatabase = await getTmdbInfoByName(searchTitleForTmdb);
 					}
-				}
+					console.log(`[ADDON ANIMEFIRE] Anime encontrado no AniList: "${aniListMedia?.title.english}"`);
 
-				let savedAnimeRecord: any | null = null;
+					foundImdbId = aniListMedia ? imdb_id ?? null : null;
 
-				if (finalInfoForDatabase) {
-					savedAnimeRecord = await saveAnimesToDatabase(finalInfoForDatabase, scrapedAnime);
+					if (foundImdbId) {
+						console.log(`[ADDON ANIMEFIRE] TMDb ID encontrado: ${foundImdbId} para ${scrapedAnime.secoundName}`)
+						foundTmdbInfoFromAniList = await getTmdbInfoByImdbId(foundImdbId);
+					}
+
+					if (foundTmdbInfoFromAniList) {
+						finalInfoForDatabase = foundTmdbInfoFromAniList;
+						console.log(`[ADDON ANIMEFIRE] Usando TMDB info encontrada via AniList para "${finalInfoForDatabase.title}".`);
+					} else {
+						console.log(`[ADDON ANIMEFIRE] TMDB info não encontrada via AniList ID. Tentando buscar no TMDB por nome principal: "${scrapedAnime.title}".`);
+						if (aniListMedia) {
+							finalInfoForDatabase = await getTmdbInfoByName(
+								aniListMedia,
+								scrapedAnime.title.replace(/[^a-zA-ZáàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, ''),
+								type as "movie" | "series"
+							);
+						}
+
+						if (!finalInfoForDatabase && scrapedAnime.secoundName && aniListMedia) {
+							let searchTitleForTmdb = scrapedAnime.secoundName;
+							if (searchTitleForTmdb.includes(':')) {
+								searchTitleForTmdb = searchTitleForTmdb.split(':')[0].trim();
+							} else {
+								const words = searchTitleForTmdb.split(' ');
+								searchTitleForTmdb = words.slice(0, 3).join(' ').trim();
+							}
+							finalInfoForDatabase = await getTmdbInfoByName(
+								aniListMedia,
+								searchTitleForTmdb,
+								type as "movie" | "series"
+							);
+						}
+					}
+
+					let savedAnimeRecord: any | null = null;
+
+					if (finalInfoForDatabase) {
+						savedAnimeRecord = await saveAnimesToDatabase(finalInfoForDatabase, scrapedAnime);
+					} else {
+					}
+					if (savedAnimeRecord) {
+						const metaId = savedAnimeRecord.stremioId || `animefire_${scrapedAnime.type}_${encodeURIComponent(scrapedAnime.animefireUrl)}`;
+						metas.push({
+							id: metaId,
+							type: savedAnimeRecord.type as 'movie' | 'series',
+							name: savedAnimeRecord.title,
+							poster: savedAnimeRecord.poster || savedAnimeRecord.background || undefined,
+							description: savedAnimeRecord.description || '',
+							genres: savedAnimeRecord.genres ? JSON.parse(savedAnimeRecord.genres) : [],
+							releaseInfo: savedAnimeRecord.releaseYear?.toString(),
+							background: savedAnimeRecord.background || savedAnimeRecord.poster || undefined,
+						});
+					}
 				} else {
-				}
-
-				if (savedAnimeRecord) {
-					const metaId = savedAnimeRecord.stremioId || `animefire_${scrapedAnime.type}_${encodeURIComponent(scrapedAnime.animefireUrl)}`;
 					metas.push({
-						id: metaId,
-						type: savedAnimeRecord.type as 'movie' | 'series',
-						name: savedAnimeRecord.title,
-						poster: savedAnimeRecord.poster || savedAnimeRecord.background || undefined,
-						description: savedAnimeRecord.description || '',
-						genres: savedAnimeRecord.genres ? JSON.parse(savedAnimeRecord.genres) : [],
-						releaseInfo: savedAnimeRecord.releaseYear?.toString(),
-						background: savedAnimeRecord.background || savedAnimeRecord.poster || undefined,
+						id: foundDb.id,
+						type: foundDb.type,
+						name: foundDb.title,
+						poster: foundDb.poster ?? '',
+						description: foundDb.description ?? '',
+						genres: typeof foundDb.genres === 'string'
+							? foundDb.genres.split(',').map(g => g.trim()).filter(g => g)
+							: (foundDb.genres ?? ['']),
+						releaseInfo: foundDb.releaseYear ?? '',
+						background: foundDb.background ?? ''
 					});
 				}
 
