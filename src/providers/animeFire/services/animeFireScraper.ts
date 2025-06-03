@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { ScrapedAnimeAnimeFire, ScrapedEpisodeAnimeFire, ScrapedStream } from '../../../utils/types/types';
+import { ScrapedAnimeAnimeFire, ScrapedEpisodeAnimeFire, ScrapedEpisodeTorrent, ScrapedStream } from '../../../utils/types/types';
 import puppeteer from 'puppeteer';  
 import {PROVIDER_URL,SEARCH_URL,SERIES_BR_URL,SERIES_SUBTITLED_URL,SERIES_TOP_URL,SERIES_UPGRADED_URL,RECENT_SERIES_URL,MOVIES_SUBTITLED_URL,MOVIES_BR_URL} from '../constants/url';
 // import { encode } from 'punycode'; // Não é necessário para este contexto e pode ser removido
@@ -47,9 +47,9 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
         });
         const $ = cheerio.load(data);
 
-        const description = $('div.desc_anime > p').text().trim();
-        const genres = $('div.categorias_box > a').map((i, el) => $(el).text().trim()).get();
-        const releaseYear = $('div.anime_info_principal_ep > span:nth-child(2)').text().trim();
+        const description = $('span.spanAnimeInfo').text().trim();
+        const genres = $('div.animeInfo > a').map((i, el) => $(el).text().trim()).get();
+        const releaseYear = $('div.animeInfo > span').text().trim();
         const poster = $('div.anime_image > img').attr('src');
         const background = $('div.anime_capa > img').attr('data-src');
         const title = $('div.anime_info_principal > h1').text().trim();
@@ -102,7 +102,7 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
             poster: poster,
             background: poster,
             type: inferredType, 
-            episodes: episodes.length > 0 ? episodes.map(ep => ({ ...ep, released: ep.released ?? '' })) : undefined,
+            episodes: episodes.length > 0 ? episodes.map(ep => ({ ...ep, released: ep.released ?? undefined })) : undefined,
         };
 
 
@@ -115,48 +115,77 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
 }
 
 export async function scrapeStreamsFromContentPage(contentUrl: string): Promise<ScrapedStream[]> {
-    let partes = contentUrl.split("/");
-    const episode = (parseInt(partes[partes.length - 1])).toString();
-    partes[partes.length - 1] = episode;
-    let novoUrl = partes.join("/");
+
     const streams: ScrapedStream[] = [];
     let browser;
     try {
         browser = await puppeteer.launch({
-            headless: true 
+            headless: true,
+            executablePath: '/usr/bin/chromium-browser'
         });
         const page = await browser.newPage();
 
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.goto(novoUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-        await page.waitForSelector('#my-video_html5_api', { timeout: 15000 }); 
-
-        const streamUrl = await page.$eval('#my-video_html5_api', videoElement => {
-            const src = videoElement.getAttribute('src');
-            const dataSrc = videoElement.getAttribute('data-video-src');
-            return src || dataSrc;
+        await page.goto(contentUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.waitForSelector('#dw', { timeout: 15000 }); 
+        const downloadPageUrl = await page.$eval('#dw', pageElement => {
+            const href = pageElement.getAttribute('href');
+            return href;
         });
 
-        if (streamUrl && streamUrl.startsWith('https')) {
-            const streamUrlFHD = streamUrl.replace('sd/', 'fhd/');
-            const streamUrlHD = streamUrl.replace('sd/', 'hd/');
-            try {
-                await axios.head(streamUrlFHD); 
-                streams.push({ url: streamUrlFHD, name: 'AnimeFire Player 1080p' });
-            } catch (err) {
-
+        if (downloadPageUrl && downloadPageUrl.startsWith('https')) {
+            await page.goto(downloadPageUrl, {waitUntil: 'networkidle2', timeout: 30000});
+            await page.waitForSelector('a.quicksand300');
+            const links = await page.$$('a.quicksand300'); 
+            let streamLinkSd;
+            let streamLinkHd;
+            let streamLinkFHd;
+            for (const link of links) { 
+                const quality = await link.evaluate(node => (node.textContent ?? '').trim()); 
+                const href = (await link.evaluate(node => node.getAttribute('download')))?.split('?')[0]; 
+                console.log(`Verificações Qualidade: ${quality}, href: ${href}`)
+                if (typeof href === 'string' && (href.endsWith('.mp4') || href.endsWith('.webm') || href.endsWith('.avi') || href.endsWith('.mov') || href.endsWith('.mkv'))) {
+                    if(quality == 'SD'){
+                        streamLinkSd = href;
+                        continue
+                    }else if(quality == 'HD'){
+                        streamLinkHd = href;
+                        continue
+                    }else if(quality == 'F-HD'){
+                        streamLinkFHd = href;
+                        continue
+                    }
+                } else {
+                    console.log(`Qualidade: ${quality}, Não é um link de vídeo reconhecido: ${href}`);
+                }
             }
 
-            try {
-                await axios.head(streamUrlHD);
-                streams.push({ url: streamUrlHD, name: 'AnimeFire Player 720p' });
-            } catch (err) {
-
+            if(streamLinkSd){
+                console.log(`Stream 480p: ${streamLinkSd}`);
+                streams.push({ 
+                    url: streamLinkSd, 
+                    name: 'AnimeFire Video 480p',
+                    quality: 'SD'
+                });
             }
-            
-            streams.push({ url: streamUrl, name: 'AnimeFire Player SD' });
+            if(streamLinkHd){
+                console.log(`Stream 720: ${streamLinkHd}`);
+                streams.push({
+                    url: streamLinkHd, 
+                    name: 'AnimeFire Video 720p',
+                    quality: 'HD'
+                });
+            }
+            if(streamLinkFHd){
+                console.log(`Stream 1080p: ${streamLinkFHd}`);
+                streams.push({ 
+                    url: streamLinkFHd, 
+                    name: 'AnimeFire Player 1080p',
+                    quality: 'F-HD'
+                });
+            }
         } else {
-            console.warn(`[STREAM_SCRAPER] Nenhuma URL de stream válida encontrada para ${contentUrl}. URL: ${streamUrl}`);
+            console.warn(`[STREAM_SCRAPER] Nenhuma URL de stream válida encontrada para ${contentUrl}. URL: ${downloadPageUrl}`);
         }
 
     } catch (error: any) {
@@ -168,6 +197,11 @@ export async function scrapeStreamsFromContentPage(contentUrl: string): Promise<
     }
 
     return streams;
+}
+
+async function getUrlStremAnimeFire(contentUrl: string){
+
+    
 }
 
 async function getAnimeInfo(urlAnimeFire: string): Promise<{animeName: string, secoundName: string, description: string}>{

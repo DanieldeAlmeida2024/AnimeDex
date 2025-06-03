@@ -1,9 +1,9 @@
-import { Meta, ScrapedEpisodeAnimeFire, ScrapedStream, ScrapedStreamAnimeFire, Stream } from '../../utils/types/types';
+import { Meta, ScrapedEpisode, ScrapedEpisodeAnimeFire, ScrapedEpisodeTorrent, ScrapedStream, ScrapedStreamAnimeFire, Stream } from '../../utils/types/types';
 import { PROVIDER_URL } from './constants/url';
 import { ScrapedAnimeAnimeFire } from '../../utils/types/types';
 import { scrapeAtualizadosAnimes, scrapeDubladosAnimes, scrapeLegendadosAnimes, scrapeTopAnimes,scrapeRecentAnimes, searchAnimes, scrapeAnimeDetails, scrapeStreamsFromContentPage } from './services/animeFireScraper';
 import {  getTmdbInfoByImdbId, getTmdbInfoByName } from '../../utils/tmdbApi';
-import {  findUnique, saveAnimeToDb, updateAnimeToDb } from '../../persistence/db';
+import {  findUnique, saveAnimeToDb, saveEpisodesToDb, updateAnimeToDb } from '../../persistence/db';
 import { getAnimeFromAniList } from '../../utils/aniListApi';
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
@@ -30,10 +30,10 @@ export async function animeFireHeadler(
                 scrapedAnimes = await scrapeTopAnimes(type as 'series', page);
                 break;
             case 'animedex_movies_catalog':
-                scrapedAnimes = await scrapeDubladosAnimes(type as 'movie', page);
+                //scrapedAnimes = await scrapeDubladosAnimes(type as 'movie', page);
                 break;
             case 'animedex_lancamentos_movies_catalog':
-                scrapedAnimes = await scrapeRecentAnimes(type as 'movie', page);
+                //scrapedAnimes = await scrapeRecentAnimes(type as 'movie', page);
                 break;
             case 'animedex_lancamentos_series_catalog':
                 scrapedAnimes = await scrapeAtualizadosAnimes(type as 'series', page);
@@ -42,7 +42,7 @@ export async function animeFireHeadler(
                 scrapedAnimes = await scrapeAtualizadosAnimes(type as 'series', page);
                 break;
             case 'animedex_atualizados_movies_catalog': // Duplicado com lancamentos_movies_catalog? Verifique se são diferentes.
-                scrapedAnimes = await scrapeAtualizadosAnimes(type as 'movie', page);
+                //scrapedAnimes = await scrapeAtualizadosAnimes(type as 'movie', page);
                 break;
             case 'animedex_dublados_series_catalog':
                 scrapedAnimes = await scrapeDubladosAnimes(type as 'series', page);
@@ -51,7 +51,7 @@ export async function animeFireHeadler(
                 scrapedAnimes = await scrapeLegendadosAnimes(type as 'series', page);
                 break;
             case 'animedex_legendados_movies_catalog':
-                scrapedAnimes = await scrapeLegendadosAnimes(type as 'movie', page);
+                //scrapedAnimes = await scrapeLegendadosAnimes(type as 'movie', page);
                 break;
             default:
                 console.warn(`[CatalogHandler] Unknown catalog requested: ${id}. Returning empty.`);
@@ -145,7 +145,7 @@ export async function animeFireHeadler(
             } else {
                 console.log(`[CatalogHandler] Anime "${scrapedAnime.title}" found in DB.`);
                 metas.push({
-                    id: `animefire_${type}_${encodeURIComponent(animeRecord.stremioId)}`, 
+                    id: `animedex_${type}_${encodeURIComponent(animeRecord.stremioId)}`, 
                     type: animeRecord.type,
                     name: animeRecord.title,
                     poster: animeRecord.poster || animeRecord.background || undefined,
@@ -165,61 +165,27 @@ export async function animeFireHeadler(
 }
 
 export async function animeFireMetaHeadler(decodedAnimefireUrl: string, type: string): Promise<{ meta: Meta }>{
-    console.log(`[MetaHandler Interno] Iniciando para link: ${decodedAnimefireUrl}}, Tipo: ${type}`);
-
     const animefireUrlToUse = decodedAnimefireUrl
-    console.log(`[MetaHandler Interno] URL decodificada para busca/scraping: ${animefireUrlToUse}`);
-
-    if (!animefireUrlToUse || !animefireUrlToUse.startsWith(BASE_URL)) {
-        console.error(`[MetaHandler Interno] ❌ Erro: URL base inválida após decodificação: ${animefireUrlToUse}`);
-        return Promise.reject(new Error('Invalid anime ID or incorrect base URL.'));
-    }
-
     let anime = await findUnique(animefireUrlToUse);
-    console.log(`[MetaHandler Interno] Anime encontrado no DB:`, anime ? 'Sim' : 'Não');
-
-    // Condição para scraping/atualização
     const shouldScrape = !anime || !anime.episodesData || anime.updatedAt.getTime() < Date.now() - 24 * 60 * 60 * 1000;
-    console.log(`[MetaHandler Interno] Condição de scraping: ${shouldScrape}`);
-
     if (shouldScrape) {
-        console.log(`[MetaHandler Interno] ⏳ Iniciando scraping de detalhes para: ${animefireUrlToUse}`);
-        const details = await scrapeAnimeDetails(animefireUrlToUse);
-        
+        const details = await scrapeAnimeDetails(anime?.animefireUrl ?? "");        
         if (details) {
-            console.log(`[MetaHandler Interno] ✅ Detalhes raspados com sucesso. Título: ${details.title}`);
             const genresAsString = details.genres ? JSON.stringify(details.genres) : null;
 
             try {
-                anime = await prisma.anime.upsert({
-                    where: { animefireUrl: animefireUrlToUse },
-                    update: {
-                        title: details.title ?? anime?.title,
-                        poster: details.poster ?? anime?.poster,
-                        description: details.description,
-                        genres: genresAsString,
-                        releaseYear: details.releaseYear,
+                anime = await prisma.anime.update({
+                    where: { stremioId: animefireUrlToUse },
+                    data: {
+                        title: anime?.secoundName ? anime.secoundName : anime?.title,
+                        description: details.description ? details.description : anime?.description,
+                        genres: genresAsString ? genresAsString : JSON.stringify(anime?.genres),
+                        releaseYear: details.releaseYear ? details.releaseYear : anime?.releaseYear,
                         updatedAt: new Date(),
-                        background: details.background,
-                        episodesData: details.episodes ? JSON.stringify(details.episodes) : null,
-                    },
-                    create: {
-                        title: details.title ?? 'Unknown Title',
-                        type: type,
-                        animefireUrl: animefireUrlToUse,
-                        stremioId: animefireUrlToUse, // Garanta que o stremioId está aqui
-                        imdbId: anime?.imdbId || '',
-                        description: details.description,
-                        genres: genresAsString,
-                        releaseYear: details.releaseYear,
-                        background: details.background,
-                        poster: details.poster,
                         episodesData: details.episodes ? JSON.stringify(details.episodes) : null,
                     }
                 });
-                console.log(`[MetaHandler Interno] ✅ Anime salvo/atualizado no DB para: ${animefireUrlToUse}.`);
             } catch (dbError: any) {
-                console.error(`[MetaHandler Interno] ❌ ERRO ao salvar/atualizar no DB para ${animefireUrlToUse}: ${dbError.message}`);
                 // Se o erro for na gravação no DB, ainda podemos tentar retornar o que temos (se 'anime' não for nulo)
                 if (!anime) {
                     return Promise.reject(new Error(`Failed to save/update anime in DB: ${dbError.message}`));
@@ -233,7 +199,6 @@ export async function animeFireMetaHeadler(decodedAnimefireUrl: string, type: st
             }
         }
     } else {
-        console.log(`[MetaHandler Interno] Usando dados frescos do DB para ${animefireUrlToUse}.`);
     }
 
     if (!anime) {
@@ -241,11 +206,8 @@ export async function animeFireMetaHeadler(decodedAnimefireUrl: string, type: st
         return Promise.reject(new Error('Anime record is null, cannot build meta.'));
     }
 
-    // Preparar os dados para o objeto Meta
     const genresAsArray = anime.genres ? JSON.parse(anime.genres) : [];
     const episodesFromDb: ScrapedEpisodeAnimeFire[] = anime.episodesData ? JSON.parse(anime.episodesData) : [];
-    
-    // Log para verificar os dados que serão enviados ao Stremio
     console.log(`[MetaHandler Interno] Construindo objeto Meta para: ${anime.title}`);
     console.log(`[MetaHandler Interno] Poster: ${anime.poster}`);
     console.log(`[MetaHandler Interno] Descrição: ${anime.description ? anime.description.substring(0, 100) + '...' : 'N/A'}`);
@@ -258,7 +220,7 @@ export async function animeFireMetaHeadler(decodedAnimefireUrl: string, type: st
 
 
     const meta: Meta = {
-        id: `animefire_${type}_`, 
+        id: `animedex_${type}_`, 
         type: anime.type,
         name: anime.title,
         poster: anime.poster ?? undefined,
@@ -267,12 +229,11 @@ export async function animeFireMetaHeadler(decodedAnimefireUrl: string, type: st
         releaseInfo: anime.releaseYear?.toString(),
         background: anime.background ?? undefined,
         videos: type === 'series' && episodesFromDb.length > 0 ? episodesFromDb.map(ep => ({
-            id: `${encodeURIComponent(animefireUrlToUse)}:S${ep.season}E${ep.episode}`, 
+            id: `${encodeURIComponent(animefireUrlToUse)}:S${ep.season ?? 1}E${ep.episode}`, 
             title: ep.title,
-            season: ep.season,
+            season: ep.season ?? 1,
             episode: ep.episode,
-            released: ep.released,
-            overview: ep.description, 
+            released: ep.released
         })) : undefined,
     };
 
@@ -353,7 +314,7 @@ export async function scrapeAnimeFireDirectStreams(
     season?: number,
     episode?: number,
     type?: 'movie' | 'series' // Recebe o tipo para determinar o fluxo
-): Promise<ScrapedStreamAnimeFire[]> { // Retorna um array de ScrapedStreamAnimeFire
+): Promise<ScrapedStream[]> { // Retorna um array de ScrapedStreamAnimeFire
     console.log(`[AnimeFireDirectScraper] Iniciando scraping para URL Base: ${animefireBaseUrl}, Tipo: ${type}, S:${season}, E:${episode}`);
 
     let animefireContentUrl: string;
@@ -405,15 +366,63 @@ export async function scrapeAnimeFireDirectStreams(
 
     console.log(`[AnimeFireDirectScraper] Raspando streams de: ${animefireContentUrl}`);
     try {
-        let streams = await scrapeStreamsFromContentPage(animefireContentUrl);
+let partes = animefireContentUrl.split("/");
+    const episode = isNaN(parseInt(partes[partes.length - 1])) ? '' : (parseInt(partes[partes.length - 1])).toString();
+    let novoUrl = partes.slice(0, -1).join('/') + (episode ? `/${episode}` : '');
 
-        // Filtra streams com URL inválida e garante que é do tipo ScrapedStreamAnimeFire[]
-        const validStreams: ScrapedStreamAnimeFire[] = streams
-            .filter((s): s is ScrapedStreamAnimeFire => typeof s.url === 'string' && s.url.length > 0);
+    let streams = await scrapeStreamsFromContentPage(novoUrl);
 
-        if (validStreams.length === 0) {
-            console.warn(`[AnimeFireDirectScraper] Nenhum stream encontrado para ${animefireContentUrl}.`);
+    const validStreams: ScrapedStream[] = streams.map(stream => ({
+        magnet: stream.url,
+        source: stream.name,
+        url: stream.url,
+        animeFireBaseUrl: animefireBaseUrl,
+        name: stream.name,
+        episodeUrl: stream.url,
+        quality: stream.quality
+    }));
+    
+
+    if (validStreams.length === 0) {
+        console.warn(`[AnimeFireDirectScraper] Nenhum stream encontrado para ${animefireContentUrl}.`);
+    } else {
+        let animeRecord = await prisma.anime.findFirst({
+            where: { stremioId: novoUrl }
+        });
+
+        const episodesData: ScrapedEpisodeAnimeFire[] = animeRecord?.episodesData ? JSON.parse(animeRecord.episodesData) : [];
+        let updatedEpisodesData = [...episodesData];
+
+        for (const stream of validStreams) {
+            const existingIndex = updatedEpisodesData.findIndex(ep =>
+                (ep.season ?? null) === (season ?? null) &&
+                (ep.episode ?? null) === (episode !== undefined && episode !== null ? Number(episode) : null)
+            );
+
+            const link = {
+                magnet: stream.url,
+                source: stream.name,
+                url: stream.url,
+                animeFireStream: stream.url
+            };
+
+            if (existingIndex > -1) {
+                updatedEpisodesData[existingIndex] = { ...updatedEpisodesData[existingIndex], ...link };
+            } else {
+                updatedEpisodesData.push({
+                    id: animefireBaseUrl,
+                    episode: Number(episode),
+                    title: animeRecord?.title ?? '',
+                    episodeUrl: link.url ?? '',
+                    description: undefined
+                });
+            }
         }
+        for(const episodeDataSave of updatedEpisodesData){
+            await saveEpisodesToDb(episodeDataSave);
+        }
+
+    }
 
         return validStreams; // Retorna o array de ScrapedStreamAnimeFire
     } catch (error: any) {

@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateDateDataBase = updateDateDataBase;
+exports.saveEpisodesToDb = saveEpisodesToDb;
 exports.updateAnimeToDb = updateAnimeToDb;
 exports.saveAnimeToDb = saveAnimeToDb;
 exports.findUnique = findUnique;
@@ -44,6 +45,14 @@ function findFirstDataBase(tmdbInfo, scrapedAnime) {
             }
             return null;
         }
+    });
+}
+function saveEpisodesToDb(episodes) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield prisma.anime.update({
+            where: { animefireUrl: episodes.id },
+            data: { episodesData: JSON.stringify(episodes) }
+        });
     });
 }
 function updateAnimeToDb(tmdbInfo, scrapedAnime) {
@@ -146,10 +155,17 @@ export async function saveAnimesToDatabase(
 */
 function findUnique(animefireUrlBase) {
     return __awaiter(this, void 0, void 0, function* () {
-        return yield prisma.anime.findUnique({
+        return yield prisma.anime.findFirst({
             where: {
-                animefireUrl: animefireUrlBase
-            }
+                OR: [
+                    {
+                        stremioId: animefireUrlBase
+                    },
+                    {
+                        animefireUrl: animefireUrlBase
+                    }
+                ]
+            },
         });
     });
 }

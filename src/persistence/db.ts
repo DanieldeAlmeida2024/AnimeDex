@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { AnimeScrapedAnimeFireDb, ScrapedAnimeAnimeFire, TmdbInfoResult, TmdbResponseApi } from '../utils/types/types';
+import { AnimeScrapedAnimeFireDb, ScrapedAnimeAnimeFire, ScrapedEpisode, ScrapedEpisodeAnimeFire, ScrapedEpisodeTorrent, TmdbInfoResult, TmdbResponseApi } from '../utils/types/types';
 const prisma = new PrismaClient();
 
 export async function updateDateDataBase(animeFireUrl: string){
@@ -26,6 +26,13 @@ async function findFirstDataBase(tmdbInfo?: TmdbInfoResult , scrapedAnime?: Scra
         }
         return null;
     }
+}
+
+export async function saveEpisodesToDb(episodes: ScrapedEpisodeAnimeFire){
+    await prisma.anime.update({
+        where: { animefireUrl: episodes.id },
+        data: { episodesData: JSON.stringify(episodes) }
+    });
 }
 
 export async function updateAnimeToDb(
@@ -127,10 +134,16 @@ export async function saveAnimesToDatabase(
 */
 
 export async function findUnique(animefireUrlBase: string) {
-    return await prisma.anime.findUnique({
+    return await prisma.anime.findFirst({
         where: {
-            animefireUrl: animefireUrlBase
-        }
+            OR: [
+                {
+                    stremioId: animefireUrlBase
+                },
+                {
+                    animefireUrl: animefireUrlBase
+                }
+            ]
+        },
     });
-
 }

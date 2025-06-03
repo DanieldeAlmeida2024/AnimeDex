@@ -65,30 +65,21 @@ builder.defineCatalogHandler((_a) => __awaiter(void 0, [_a], void 0, function* (
     return Promise.resolve(metas);
 }));
 builder.defineMetaHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ id, type }) {
-    const decodedAnimefireUrl = decodeURIComponent(id.replace(`animefire_${type}_`, ''));
-    console.log(`[Stremio Addon] ➡️ Entrou no Meta Handler para ID: ${id}, Tipo: ${type}`);
+    const decodedAnimefireUrl = decodeURIComponent(id.replace(`animedex_${type}_`, ''));
     try {
         const result = yield (0, addon_1.animeFireMetaHeadler)(decodedAnimefireUrl, type);
-        // Adicione um log detalhado do resultado
-        console.log(`[Stremio Addon] ✅ Retorno bem-sucedido do Meta Handler para ID ${id}:`, JSON.stringify(result, null, 2));
         return Promise.resolve(result);
     }
     catch (error) {
-        // MUITO IMPORTANTE: Capturar e logar qualquer erro aqui.
-        console.error(`[Stremio Addon] ❌ ERRO no Meta Handler para ID ${id}:`, error.message);
-        // Retorne uma Promise.reject para que o Stremio saiba que houve um erro
         return Promise.reject(new Error(`Failed to retrieve meta for ${id}: ${error.message}`));
     }
 }));
 builder.defineStreamHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({ id, type, season, episode }) {
-    var _b, _c, _d, _e, _f, _g, _h;
+    var _b, _c, _d, _e, _f, _g, _h, _j;
     console.log(`[StreamHandler] ➡️ Entrou no Stream Handler para ID: "${id}", Tipo: "${type}", Temporada: ${season}, Episódio: ${episode}`);
-    // Regex para identificar IDs IMDb e variações
     const isImdbIdOnly = /^tt\d+$/.test(id);
-    // Para IDs de episódio Stremio padrão (ex: tt12345:1:1)
     const isStremioImdbEpisodeId = /^tt\d+:\d+:\d+$/.test(id);
-    // Para IDs customizados que você pode estar usando (ex: URL codificada do AnimeFire)
-    const isEncodedAnimeFireUrl = id.includes('%3A%2F%2F'); // Verifica se tem "://" codificado
+    const isEncodedAnimeFireUrl = id.includes('animefire.plus');
     let streams = []; // O Stremio SDK espera um array de objetos 'Stream'
     try {
         if (isImdbIdOnly || isStremioImdbEpisodeId) {
@@ -199,14 +190,13 @@ builder.defineStreamHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({
                 }
             }
         }
-        else if (isEncodedAnimeFireUrl) {
+        else {
             // --- Lógica para URLs codificadas do AnimeFire ---
             console.log(`[StreamHandler] 🎯 ID detectado como URL codificada do AnimeFire: "${id}".`);
             let animefireUrl = null;
             let currentSeason = season;
             let currentEpisode = episode;
             try {
-                // Se for uma série, o ID virá como 'encodedUrl:S1E1'
                 const parts = id.split(':');
                 animefireUrl = decodeURIComponent(parts[0]);
                 if (parts.length > 1 && type === 'series') {
@@ -226,11 +216,11 @@ builder.defineStreamHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({
                 return { streams: [] };
             }
             const animeRecordFromDb = yield prisma.anime.findFirst({
-                where: { animefireUrl: animefireUrl }
+                where: { stremioId: animefireUrl }
             });
             // Adicione uma lógica para buscar streams diretos do AnimeFire
             // Esta função deve ser implementada por você e raspar a URL do AnimeFire
-            const directStreams = yield (0, addon_1.scrapeAnimeFireDirectStreams)(animefireUrl, currentSeason, currentEpisode, type);
+            const directStreams = yield (0, addon_1.scrapeAnimeFireDirectStreams)((_j = animeRecordFromDb === null || animeRecordFromDb === void 0 ? void 0 : animeRecordFromDb.animefireUrl) !== null && _j !== void 0 ? _j : '', currentSeason, currentEpisode, type);
             console.log(`[StreamHandler] Scraped ${directStreams.length} streams diretos do AnimeFire.`);
             for (const stream of directStreams) {
                 if (stream.url) {
@@ -241,13 +231,6 @@ builder.defineStreamHandler((_a) => __awaiter(void 0, [_a], void 0, function* ({
                     });
                 }
             }
-            // Opcional: Você pode salvar os streams diretos do AnimeFire no episodesData também
-            // se quiser cacheá-los, mas a interface ScrapedEpisodeTorrent não se encaixa perfeitamente aqui.
-            // Talvez crie um campo separado para `animeFireEpisodesData` ou adapte o `episodesData`.
-            // Por enquanto, vamos apenas retornar os streams.
-        }
-        else {
-            console.warn(`[StreamHandler] ⚠️ ID "${id}" não corresponde a um IMDb ID ou URL codificada do AnimeFire. Tipo: ${type}.`);
         }
     }
     catch (error) {

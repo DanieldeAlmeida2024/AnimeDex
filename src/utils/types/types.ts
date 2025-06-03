@@ -7,7 +7,7 @@ export interface ScrapedAnimeAnimeFire {
     description?: string;
     genres?: string[];
     releaseYear?: number;
-    episodes?: ScrapedEpisode[];
+    episodes?: ScrapedEpisodeAnimeFire[];
     secoundName?: string;
     stremioId?: string;
 }
@@ -34,10 +34,10 @@ export interface AnimeScrapedAnimeFireDb{
 
 export interface ScrapedEpisodeAnimeFire {
 	description: any;
-    id: string;
+    id?: string;
     title: string;
     released?: Date;
-    season: number;
+    season?: number;
     episode: number;
     episodeUrl: string;
 }
@@ -103,10 +103,6 @@ export interface ScrapedStream {
     quality?: string; // Qualidade do vídeo (ex: "1080p", "720p", "480p")
     magnet?: string;
     animeFire?: string;
-    // Para streams diretos, pode adicionar:
-    // ytId?: string;
-    // externalUrl?: string;
-    // Subtitles para o player do Stremio
     parsedInfo?: {
         season?: number;
         episode?: number;
@@ -142,7 +138,7 @@ export type ScrapedEpisodeTorrent = {
   title: string;
   magnet: string;
   source?: string;
-  url?: string; // URL da página do torrent, se disponível
+  url?: string;
   animeFireStream?: string;
 };
 
