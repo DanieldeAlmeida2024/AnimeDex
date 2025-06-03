@@ -1,52 +1,99 @@
 import { PrismaClient } from '@prisma/client';
-import { AnimeScrapedAnimeFireDb, ScrapedAnimeAnimeFire, TmdbResponseApi } from '../utils/types/types';
+import { AnimeScrapedAnimeFireDb, ScrapedAnimeAnimeFire, TmdbInfoResult, TmdbResponseApi } from '../utils/types/types';
 const prisma = new PrismaClient();
 
-export async function updateDateDataBase(tmdbInfo: TmdbResponseApi){
+export async function updateDateDataBase(animeFireUrl: string){
     prisma.anime.update({
-        where: { imdbId: tmdbInfo?.id?.toString() },
+        where: { animefireUrl: animeFireUrl },
         data: { lastSearchedAt: new Date() }
     });
 }
 
-export async function findFirstDataBase(tmdbInfo: TmdbResponseApi ){
-    return prisma.anime.findFirst({
-        where: { 
-            title: tmdbInfo?.title,
-            imdbId: `${tmdbInfo?.id}`
-            }
-    });
-}
-
-export async function createAnimeOnDataBase(
-    tmdbInfo: TmdbResponseApi
-){
-        if (!tmdbInfo) {
-            throw new Error("tmdbInfo cannot be null");
-        }
-        await prisma.anime.create({
-            data: {
-                imdbId: `tt${tmdbInfo.id}` ,
-                title: tmdbInfo.title,
-                poster: tmdbInfo.poster ?? '',
-                background: tmdbInfo.background,
-                genres: tmdbInfo.genres ? JSON.stringify(tmdbInfo.genres) : null,
-                releaseYear: tmdbInfo.releaseYear,
-                description: tmdbInfo.description,
-                type: '',
-                stremioId: `tt${tmdbInfo.id}`,
-                lastSearchedAt: new Date(),
-                animefireUrl: '', 
-            }
+async function findFirstDataBase(tmdbInfo?: TmdbInfoResult , scrapedAnime?: ScrapedAnimeAnimeFire) {
+    try {
+        const stremioId = encodeURIComponent(scrapedAnime?.animefireUrl ?? '');
+        const record = await prisma.anime.findFirst({
+            where: {
+                stremioId: tmdbInfo?.imdbId ? tmdbInfo?.imdbId : stremioId
+            } 
         });
+        return record; 
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error(`Erro ao buscar no banco de dados: ${error.message}`);
+        } else {
+            console.error('Erro ao buscar no banco de dados:', error);
+        }
+        return null;
+    }
 }
 
-export async function saveAnimesToDatabase(
-    tmdbInfo: {id: number, title: string; poster?: string; background?: string; genres?: string[]; releaseYear?: number; description?: string; type: "movie" | "series" } | null,
+export async function updateAnimeToDb(
+    tmdbInfo: TmdbInfoResult,
     scrapedAnime: ScrapedAnimeAnimeFire) {
     try {
+            await prisma.anime.updateMany({
+                where: { 
+                    stremioId: tmdbInfo?.imdbId ? tmdbInfo.imdbId : undefined, 
+                },
+                data: {
+                    title: scrapedAnime.title,
+                    poster: tmdbInfo?.poster || scrapedAnime.poster,
+                    type: scrapedAnime.type,
+                    updatedAt: new Date(),
+                    secoundName: scrapedAnime.secoundName,
+                    description: tmdbInfo?.description,
+                    background: tmdbInfo?.background,
+                    genres: scrapedAnime.genres ? JSON.stringify(scrapedAnime.genres) : null,
+                    releaseYear: tmdbInfo?.releaseYear || scrapedAnime.releaseYear
+                }
+            });
+            return await findFirstDataBase(undefined,scrapedAnime);
+    } catch (e: any) {
+        return false
+    }
+}
+
+export async function saveAnimeToDb(
+    tmdbInfo: TmdbInfoResult,
+    scrapedAnime: ScrapedAnimeAnimeFire) {
+    try {
+        const stremioId = encodeURIComponent(scrapedAnime.animefireUrl);
+        if (!tmdbInfo.imdbId) {
+            console.error("IMDb ID é obrigatório, mas não foi fornecido.");
+            return false; 
+        }
+            await prisma.anime.create({
+                data: {
+                    title: scrapedAnime.title,
+                    poster: tmdbInfo?.poster,
+                    type: scrapedAnime.type,
+                    animefireUrl: scrapedAnime.animefireUrl,
+                    imdbId: tmdbInfo.imdbId, 
+                    stremioId: stremioId ,
+                    secoundName: scrapedAnime.secoundName,
+                    description: tmdbInfo?.description,
+                    background: tmdbInfo?.background,
+                    genres: scrapedAnime.genres ? JSON.stringify(scrapedAnime.genres) : null,
+                    releaseYear: tmdbInfo?.releaseYear || scrapedAnime.releaseYear
+                }
+            });
+            return await findFirstDataBase(undefined,scrapedAnime);
+    } catch (e: any) {
+        return false
+    }
+}
+/*
+export async function saveAnimesToDatabase(
+    tmdbInfo: TmdbInfoResult,
+    scrapedAnime: ScrapedAnimeAnimeFire) {
+    try {
+        const stremioId = encodeURIComponent(scrapedAnime.animefireUrl);
             await prisma.anime.upsert({
-                where: { imdbId: `tt${tmdbInfo?.id}` },
+                where: { 
+                    stremioId: tmdbInfo?.imdbId ? tmdbInfo.imdbId : undefined, 
+                    animefireUrl: scrapedAnime.animefireUrl 
+                },
                 update: {
                     title: scrapedAnime.title,
                     poster: tmdbInfo?.poster || scrapedAnime.poster,
@@ -55,7 +102,7 @@ export async function saveAnimesToDatabase(
                     secoundName: scrapedAnime.secoundName,
                     description: tmdbInfo?.description,
                     background: tmdbInfo?.background,
-                    genres: tmdbInfo?.genres ? JSON.stringify(tmdbInfo.genres) : null,
+                    genres: scrapedAnime.genres ? JSON.stringify(scrapedAnime.genres) : null,
                     releaseYear: tmdbInfo?.releaseYear || scrapedAnime.releaseYear
                 },
                 create: {
@@ -63,8 +110,8 @@ export async function saveAnimesToDatabase(
                     poster: tmdbInfo?.poster,
                     type: scrapedAnime.type,
                     animefireUrl: scrapedAnime.animefireUrl,
-                    imdbId: `tt${tmdbInfo?.id}`, // Provide a default or actual imdbId if available
-                    stremioId: `tt${tmdbInfo?.id}`, // Add stremioId as required by AnimeCreateInput
+                    imdbId: tmdbInfo?.imdbId ?? '', 
+                    stremioId: tmdbInfo?.imdbId ? tmdbInfo.imdbId : encodeURIComponent(scrapedAnime.animefireUrl),
                     secoundName: scrapedAnime.secoundName,
                     description: tmdbInfo?.description,
                     background: tmdbInfo?.background,
@@ -77,7 +124,7 @@ export async function saveAnimesToDatabase(
         return false
     }
 }
-
+*/
 
 export async function findUnique(animefireUrlBase: string) {
     return await prisma.anime.findUnique({

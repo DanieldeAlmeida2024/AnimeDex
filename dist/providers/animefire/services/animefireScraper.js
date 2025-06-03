@@ -62,298 +62,38 @@ const BASE_URL = url_1.PROVIDER_URL;
 function scrapeRecentAnimes(type_1) {
     return __awaiter(this, arguments, void 0, function* (type, page = 1) {
         const url = `${BASE_URL}${url_1.RECENT_SERIES_URL}/${page}`;
-        try {
-            const { data } = yield axios_1.default.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
-            const $ = cheerio.load(data);
-            const animes = [];
-            const animePromises = [];
-            $('div.divCardUltimosEps').each((i, element) => {
-                const articleLink = $(element).find('article > a');
-                const titleElement = articleLink.find('div.text-block > h3.animeTitle');
-                const title = titleElement.text().trim();
-                const animefireUrl = articleLink.attr('href');
-                const poster = articleLink.find('img.imgAnimes').attr('data-src');
-                if (title && animefireUrl && poster) {
-                    const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
-                    const normalizedTitle = title.toLowerCase();
-                    const inferredType = (normalizedTitle.includes('film') || normalizedTitle.includes('movie')) ? 'movie' : 'series';
-                    animePromises.push((() => __awaiter(this, void 0, void 0, function* () {
-                        const animeName = yield getNameAnime(animefireUrl);
-                        if (inferredType === type) {
-                            animes.push({
-                                title: animeName !== null && animeName !== void 0 ? animeName : title,
-                                poster: poster,
-                                animefireUrl: fullAnimefireUrl,
-                                type: inferredType,
-                            });
-                        }
-                        else {
-                            console.log(`[scrapeRecentAnimes] Descartando "${title}" (tipo ${inferredType}, esperado ${type})`);
-                        }
-                    }))());
-                }
-                else {
-                    console.warn(`Skipping incomplete anime data: Title=${title}, URL=${animefireUrl}, Poster=${poster}`);
-                }
-            });
-            yield Promise.all(animePromises);
-            console.log(`[SCRAPER DUBLADOS] ${animes}`);
-            return animes;
-        }
-        catch (error) {
-            console.error(`Erro ao fazer scraping de animes recentes (${type}):`, error.message);
-            return [];
-        }
+        return yield getAnimes(url, type, page);
     });
 }
 function scrapeTopAnimes(type_1) {
     return __awaiter(this, arguments, void 0, function* (type, page = 1) {
         const url = `${BASE_URL}${url_1.SERIES_TOP_URL}/${page}`;
-        try {
-            const { data } = yield axios_1.default.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
-            const $ = cheerio.load(data);
-            const animes = [];
-            const animePromises = [];
-            $('div.divCardUltimosEps').each((i, element) => {
-                const articleLink = $(element).find('article > a');
-                const titleElement = articleLink.find('div.text-block > h3.animeTitle');
-                const title = titleElement.text().trim();
-                const animefireUrl = articleLink.attr('href');
-                const poster = articleLink.find('img.imgAnimes').attr('data-src');
-                if (title && animefireUrl && poster) {
-                    const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
-                    const normalizedTitle = title.toLowerCase();
-                    const inferredType = (normalizedTitle.includes('film') || normalizedTitle.includes('movie')) ? 'movie' : 'series';
-                    animePromises.push((() => __awaiter(this, void 0, void 0, function* () {
-                        const animeName = yield getNameAnime(animefireUrl);
-                        if (inferredType === type) {
-                            animes.push({
-                                title: animeName !== null && animeName !== void 0 ? animeName : title,
-                                poster: poster,
-                                animefireUrl: fullAnimefireUrl,
-                                type: inferredType,
-                            });
-                        }
-                        else {
-                            console.log(`[scrapeRecentAnimes] Descartando "${title}" (tipo ${inferredType}, esperado ${type})`);
-                        }
-                    }))());
-                }
-                else {
-                    console.warn(`Skipping incomplete anime data: Title=${title}, URL=${animefireUrl}, Poster=${poster}`);
-                }
-            });
-            yield Promise.all(animePromises);
-            console.log(`[SCRAPER DUBLADOS] ${animes}`);
-            return animes;
-        }
-        catch (error) {
-            console.error(`Erro ao fazer scraping de animes recentes (${type}):`, error.message);
-            return [];
-        }
+        return yield getAnimes(url, type, page);
     });
 }
 function scrapeAtualizadosAnimes(type_1) {
     return __awaiter(this, arguments, void 0, function* (type, page = 1) {
         const url = `${BASE_URL}${url_1.SERIES_UPGRADED_URL}/${page}`;
-        try {
-            const { data } = yield axios_1.default.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
-            const $ = cheerio.load(data);
-            const animes = [];
-            const animePromises = [];
-            $('div.divCardUltimosEps').each((i, element) => {
-                const articleLink = $(element).find('article > a');
-                const titleElement = articleLink.find('div.text-block > h3.animeTitle');
-                const title = titleElement.text().trim();
-                const animefireUrl = articleLink.attr('href');
-                const poster = articleLink.find('img.imgAnimes').attr('data-src');
-                if (title && animefireUrl && poster) {
-                    const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
-                    const normalizedTitle = title.toLowerCase();
-                    const inferredType = (normalizedTitle.includes('film') || normalizedTitle.includes('movie')) ? 'movie' : 'series';
-                    animePromises.push((() => __awaiter(this, void 0, void 0, function* () {
-                        const animeName = yield getNameAnime(animefireUrl);
-                        if (inferredType === type) {
-                            animes.push({
-                                title: animeName !== null && animeName !== void 0 ? animeName : title,
-                                poster: poster,
-                                animefireUrl: fullAnimefireUrl,
-                                type: inferredType,
-                            });
-                        }
-                        else {
-                            console.log(`[scrapeRecentAnimes] Descartando "${title}" (tipo ${inferredType}, esperado ${type})`);
-                        }
-                    }))());
-                }
-                else {
-                    console.warn(`Skipping incomplete anime data: Title=${title}, URL=${animefireUrl}, Poster=${poster}`);
-                }
-            });
-            yield Promise.all(animePromises);
-            console.log(`[SCRAPER DUBLADOS] ${animes}`);
-            return animes;
-        }
-        catch (error) {
-            console.error(`Erro ao fazer scraping de animes recentes (${type}):`, error.message);
-            return [];
-        }
+        return yield getAnimes(url, type, page);
     });
 }
 function scrapeDubladosAnimes(type_1) {
     return __awaiter(this, arguments, void 0, function* (type, page = 1) {
         const url = `${BASE_URL}${type === 'series' ? url_1.SERIES_BR_URL : url_1.MOVIES_BR_URL}/${page}`;
-        try {
-            const { data } = yield axios_1.default.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
-            const $ = cheerio.load(data);
-            const animes = [];
-            const animePromises = [];
-            $('div.divCardUltimosEps').each((i, element) => {
-                const articleLink = $(element).find('article > a');
-                const titleElement = articleLink.find('div.text-block > h3.animeTitle');
-                const title = titleElement.text().trim();
-                const animefireUrl = articleLink.attr('href');
-                const poster = articleLink.find('img.imgAnimes').attr('data-src');
-                if (title && animefireUrl && poster) {
-                    const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
-                    const normalizedTitle = title.toLowerCase();
-                    const inferredType = (normalizedTitle.includes('film') || normalizedTitle.includes('movie')) ? 'movie' : 'series';
-                    animePromises.push((() => __awaiter(this, void 0, void 0, function* () {
-                        const animeName = yield getNameAnime(animefireUrl);
-                        if (inferredType === type) {
-                            animes.push({
-                                title: animeName !== null && animeName !== void 0 ? animeName : title,
-                                poster: poster,
-                                animefireUrl: fullAnimefireUrl,
-                                type: inferredType,
-                            });
-                        }
-                        else {
-                            console.log(`[scrapeRecentAnimes] Descartando "${title}" (tipo ${inferredType}, esperado ${type})`);
-                        }
-                    }))());
-                }
-                else {
-                    console.warn(`Skipping incomplete anime data: Title=${title}, URL=${animefireUrl}, Poster=${poster}`);
-                }
-            });
-            yield Promise.all(animePromises);
-            console.log(`[SCRAPER DUBLADOS] ${animes}`);
-            return animes;
-        }
-        catch (error) {
-            console.error(`Erro ao fazer scraping de animes recentes (${type}):`, error.message);
-            return [];
-        }
+        return yield getAnimes(url, type, page);
     });
 }
 function scrapeLegendadosAnimes(type_1) {
     return __awaiter(this, arguments, void 0, function* (type, page = 1) {
         const url = `${BASE_URL}/${type === 'series' ? url_1.SERIES_SUBTITLED_URL : url_1.MOVIES_SUBTITLED_URL}/${page}`;
-        try {
-            const { data } = yield axios_1.default.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
-            const $ = cheerio.load(data);
-            const animes = [];
-            const animePromises = [];
-            $('div.divCardUltimosEps').each((i, element) => {
-                const articleLink = $(element).find('article > a');
-                const titleElement = articleLink.find('div.text-block > h3.animeTitle');
-                const title = titleElement.text().trim();
-                const animefireUrl = articleLink.attr('href');
-                const poster = articleLink.find('img.imgAnimes').attr('data-src');
-                if (title && animefireUrl && poster) {
-                    const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
-                    const normalizedTitle = title.toLowerCase();
-                    const inferredType = (normalizedTitle.includes('film') || normalizedTitle.includes('movie')) ? 'movie' : 'series';
-                    animePromises.push((() => __awaiter(this, void 0, void 0, function* () {
-                        const animeName = yield getNameAnime(animefireUrl);
-                        if (inferredType === type) {
-                            animes.push({
-                                title: animeName !== null && animeName !== void 0 ? animeName : title,
-                                poster: poster,
-                                animefireUrl: fullAnimefireUrl,
-                                type: inferredType,
-                            });
-                        }
-                        else {
-                            console.log(`[scrapeRecentAnimes] Descartando "${title}" (tipo ${inferredType}, esperado ${type})`);
-                        }
-                    }))());
-                }
-                else {
-                    console.warn(`Skipping incomplete anime data: Title=${title}, URL=${animefireUrl}, Poster=${poster}`);
-                }
-            });
-            yield Promise.all(animePromises);
-            return animes;
-        }
-        catch (error) {
-            console.error(`Erro ao fazer scraping de animes recentes (${type}):`, error.message);
-            return [];
-        }
+        return yield getAnimes(url, type, page);
     });
 }
-function searchAnimes(query, requestedType) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const formattedQueryForUrl = query.trim().replace(/\s+/g, '-').toLowerCase();
-        const url = `${BASE_URL}${url_1.SEARCH_URL}/${formattedQueryForUrl}`;
-        const animes = [];
-        try {
-            const { data } = yield axios_1.default.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
-            const $ = cheerio.load(data);
-            $('div.divCardUltimosEps').each((i, element) => {
-                const articleLink = $(element).find('article > a');
-                const titleElement = articleLink.find('div.text-block > h3.animeTitle');
-                const title = titleElement.text().trim();
-                const animefireUrl = articleLink.attr('href');
-                const poster = articleLink.find('img.imgAnimes').attr('data-src');
-                if (title && animefireUrl && poster) {
-                    const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
-                    const normalizedTitle = title.toLowerCase();
-                    const inferredType = (normalizedTitle.includes('film') || normalizedTitle.includes('movie')) ? 'movie' : 'series';
-                    if (!requestedType || inferredType === requestedType) {
-                        animes.push({
-                            title: title,
-                            poster: poster,
-                            animefireUrl: fullAnimefireUrl,
-                            type: inferredType,
-                        });
-                    }
-                    else {
-                        console.log(`[searchAnimes] Descartando "${title}" (tipo ${inferredType}, esperado ${requestedType}) na busca.`);
-                    }
-                }
-            });
-            return animes;
-        }
-        catch (error) {
-            console.error(`Erro ao fazer scraping de busca (${query}):`, error.message);
-            return [];
-        }
+function searchAnimes(query_1) {
+    return __awaiter(this, arguments, void 0, function* (query, page = 1) {
+        let animes = [];
+        animes = yield getSearchAnimes(animes, query, page);
+        return animes;
     });
 }
 function scrapeAnimeDetails(animefireUrl) {
@@ -399,7 +139,8 @@ function scrapeAnimeDetails(animefireUrl) {
                             season: 1,
                             episode: episodeNumber,
                             episodeUrl: fullEpisodeUrl,
-                            released: undefined
+                            released: undefined,
+                            description: undefined
                         });
                     }
                 });
@@ -413,7 +154,7 @@ function scrapeAnimeDetails(animefireUrl) {
                 poster: poster,
                 background: poster,
                 type: inferredType,
-                episodes: episodes.length > 0 ? episodes : undefined,
+                episodes: episodes.length > 0 ? episodes.map(ep => { var _a; return (Object.assign(Object.assign({}, ep), { released: (_a = ep.released) !== null && _a !== void 0 ? _a : '' })); }) : undefined,
             };
             return scrapedDetails;
         }
@@ -476,9 +217,11 @@ function scrapeStreamsFromContentPage(contentUrl) {
         return streams;
     });
 }
-function getNameAnime(urlAnimeFire) {
+function getAnimeInfo(urlAnimeFire) {
     return __awaiter(this, void 0, void 0, function* () {
         let animeName;
+        let secoundName;
+        let description;
         try {
             const { data } = yield axios_1.default.get(urlAnimeFire, {
                 headers: {
@@ -486,11 +229,94 @@ function getNameAnime(urlAnimeFire) {
                 }
             });
             const $ = cheerio.load(data);
-            animeName = $('h1.quicksand400').text().trim();
+            animeName = $('div.div_anime_names > h1.mb-0').text().trim();
+            secoundName = $('div.div_anime_names > h6.mb-0').text().trim();
+            description = $('div.divSinopse > span.spanAnimeInfo').text().trim();
             animeName = animeName.replace(/[^a-zA-ZáàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, '');
-            return animeName;
+            return { animeName, secoundName, description };
         }
         catch (e) {
+            return { animeName: '', secoundName: '', description: '' };
+        }
+    });
+}
+function getAnimes(url_2, type_1) {
+    return __awaiter(this, arguments, void 0, function* (url, type, page = 1) {
+        try {
+            const { data } = yield axios_1.default.get(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+            });
+            const $ = cheerio.load(data);
+            const animes = [];
+            const animeElements = $('div.divCardUltimosEps').toArray();
+            for (const element of animeElements) {
+                const articleLink = $(element).find('article > a');
+                const href = articleLink.attr('href');
+                const animeInfo = href ? yield getAnimeInfo(href) : undefined;
+                let animeNameWithSpecialChars = (animeInfo === null || animeInfo === void 0 ? void 0 : animeInfo.animeName) ? animeInfo.animeName.trim() : '';
+                let animeSecoundNameWithSpecialChars = (animeInfo === null || animeInfo === void 0 ? void 0 : animeInfo.secoundName) ? animeInfo.secoundName.trim() : '';
+                const descriptionInfo = (animeInfo === null || animeInfo === void 0 ? void 0 : animeInfo.description) ? animeInfo.description.trim() : '';
+                const animefireUrl = articleLink.attr('href');
+                const poster = articleLink.find('img.imgAnimes').attr('data-src');
+                let animeNameCleaned = animeNameWithSpecialChars.replace(/[^a-zA-Z0-9áàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, '');
+                if (animeNameCleaned && animefireUrl && poster) {
+                    const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
+                    animes.push({
+                        title: animeNameCleaned,
+                        poster: poster,
+                        animefireUrl: fullAnimefireUrl,
+                        type: type,
+                        secoundName: animeSecoundNameWithSpecialChars,
+                        description: descriptionInfo
+                    });
+                }
+                else {
+                    console.warn(`Skipping incomplete anime data: Title=${animeNameCleaned}, URL=${animefireUrl}, Poster=${poster}`);
+                }
+            }
+            return animes;
+        }
+        catch (error) {
+            console.error(`Erro ao fazer scraping de animes recentes (${type}):`, error.message);
+            return [];
+        }
+    });
+}
+function getSearchAnimes(animes_1, query_1) {
+    return __awaiter(this, arguments, void 0, function* (animes, query, page = 1) {
+        const encodedQuery = encodeURIComponent(query);
+        const url = `${BASE_URL}${url_1.SEARCH_URL}/${encodedQuery}/${page}`;
+        try {
+            const { data } = yield axios_1.default.get(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+            });
+            const $ = cheerio.load(data);
+            ;
+            $('div.card_anime').each((i, element) => {
+                const articleLink = $(element).find('article > a');
+                const titleElement = articleLink.find('div.text-block > h3.animeTitle');
+                const title = titleElement.text().trim();
+                const animefireUrl = articleLink.attr('href');
+                const poster = articleLink.find('img.transitioning_src').attr('data-src');
+                if (title && animefireUrl && poster) {
+                    const type = animefireUrl.includes('/filme/') ? 'movie' : 'series';
+                    animes.push({
+                        title: title,
+                        poster: poster,
+                        animefireUrl: `${BASE_URL}${animefireUrl}`,
+                        type: type,
+                    });
+                }
+            });
+            return animes;
+        }
+        catch (error) {
+            console.error(`Erro ao fazer scraping de busca (${query}):`, error.message);
+            return [];
         }
     });
 }

@@ -9,6 +9,7 @@ export interface ScrapedAnimeAnimeFire {
     releaseYear?: number;
     episodes?: ScrapedEpisode[];
     secoundName?: string;
+    stremioId?: string;
 }
 
 export interface AnimeScrapedAnimeFireDb{
@@ -32,6 +33,7 @@ export interface AnimeScrapedAnimeFireDb{
 }
 
 export interface ScrapedEpisodeAnimeFire {
+	description: any;
     id: string;
     title: string;
     released?: Date;
@@ -40,7 +42,7 @@ export interface ScrapedEpisodeAnimeFire {
     episodeUrl: string;
 }
 
-export interface ScrapedStreamAnimeFire {
+export interface ScrapedStreamAnimeFire extends ScrapedStream{
     url: string;
     name?: string;
     quality?: string;
@@ -96,7 +98,7 @@ export interface ScrapedAnime {
 
 export interface ScrapedStream {
     url?: string; // A URL do stream (HTTP ou Magnet)
-    name: string; // Nome para exibição no Stremio (ex: "Dublado 1080p", "Torrent [720p]")
+    name?: string; // Nome para exibição no Stremio (ex: "Dublado 1080p", "Torrent [720p]")
     title?: string; // Título opcional (pode ser o nome do fansub ou da release)
     quality?: string; // Qualidade do vídeo (ex: "1080p", "720p", "480p")
     magnet?: string;
@@ -128,8 +130,6 @@ interface animeFireScrapedStream extends ScrapedStream {
     uploadDate?: string;
     behaviorHints?: Record<string, any>;
 }
-
-/* Removed duplicate TmdbFindResponse interface to resolve type conflicts. */
 
 export type EpisodeInfo = {
     season: number;
@@ -181,7 +181,6 @@ export interface ParsedTorrentInfo {
     sourceUrl: string; // URL da página onde o magnet foi encontrado
 }
 
-
 export enum DataTypes {
     List = 'list',
     Details = 'details'
@@ -194,32 +193,14 @@ export enum FileEntityType {
 
 export type FolderEntity = {
     type: FileEntityType.Folder
-    /**
-     * The name of the folder.
-     */
     name: string
-
-    /**
-     * The list of files contained within the folder.
-     */
     files: (FileEntity | FolderEntity)[]
 }
 
 export type FileEntity = {
     type: FileEntityType.File
-    /**
-     * The name of the file.
-     */
     fileName: string
-
-    /**
-     * The size of the file as a human-readable string (e.g., "1 MiB").
-     */
     readableSize: string
-
-    /**
-     * The size of the file in bytes.
-     */
     sizeInBytes: number
 }
 
@@ -334,51 +315,67 @@ export interface TmdbMovieResult {
     vote_count: number;
 }
 
-// Interface for the full TMDB movie search response
+export interface TmdbInfoResult {
+    id: number; // ID do TMDB
+    title: string;
+    poster?: string;
+    background?: string;
+    genres?: string[];
+    releaseYear?: number;
+    description?: string;
+    type: "movie" | "series";
+    imdbId?: string; // O IMDb ID real (string)
+}
+
 export interface TmdbSearchMovieResponse {
-    page: number;
-    results: TmdbMovieResult[];
-    total_pages: number;
-    total_results: number;
+    results: Array<{
+        id: number;
+        title: string;
+        poster_path?: string;
+        backdrop_path?: string;
+        release_date?: string;
+        overview?: string;
+        genre_ids?: number[];
+    }>;
 }
 
-// Base interface for a TV show result in TMDB search
-export interface TmdbTvResult {
-    backdrop_path: string | null;
-    first_air_date: string; // YYYY-MM-DD format
-    genre_ids: number[];
+
+
+export interface TmdbMovieTvDetails  {
     id: number;
-    name: string;
-    origin_country: string[];
-    original_language: string;
-    original_name: string;
-    overview: string;
-    popularity: number;
-    poster_path: string | null;
-    vote_average: number;
-    vote_count: number;
+    title?: string;
+    name?: string;
+    poster_path?: string;
+    backdrop_path?: string;
+    release_date?: string;
+    first_air_date?: string;
+    overview?: string;
+    genres?: Array<{ id: number; name: string }>;
+    external_ids?: {
+        imdb_id?: string;
+        // Outros IDs externos aqui
+    };
 }
 
-// Interface for the full TMDB TV show search response
 export interface TmdbSearchTvResponse {
     page: number;
-    results: TmdbTvResult[];
+    results: TmdbMovieTvDetails [];
     total_pages: number;
     total_results: number;
 }
 
-// TmdbFindResponse (already in your code but here for completeness of TMDB types)
 export interface TmdbFindResponse {
     movie_results?: TmdbMovieResult[];
-    tv_results?: TmdbTvResult[];
-    person_results: any[]; // You might want to define this more specifically if needed
+    tv_results?: TmdbMovieTvDetails [];
+    person_results: any[]; 
     tv_episode_results: any[];
     tv_season_results: any[];
-}// TmdbFindResponse for TMDB types
+}
+
 export interface TmdbFindResponse {
     movie_results?: TmdbMovieResult[];
-    tv_results?: TmdbTvResult[];
-    person_results: any[]; // You might want to define this more specifically if needed
+    tv_results?: TmdbMovieTvDetails [];
+    person_results: any[]; 
     tv_episode_results: any[];
     tv_season_results: any[];
 }

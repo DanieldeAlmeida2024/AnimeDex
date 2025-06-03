@@ -86,7 +86,8 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
                         season: 1,
                         episode: episodeNumber,
                         episodeUrl: fullEpisodeUrl,
-                        released: undefined
+                        released: undefined,
+                        description: undefined
                     });
                 }
             });
@@ -185,8 +186,6 @@ async function getAnimeInfo(urlAnimeFire: string): Promise<{animeName: string, s
         secoundName = $('div.div_anime_names > h6.mb-0').text().trim();
         description = $('div.divSinopse > span.spanAnimeInfo').text().trim();
         animeName = animeName.replace(/[^a-zA-ZáàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, '');
-        secoundName = secoundName.replace(/[^a-zA-ZáàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, '');
-        secoundName = secoundName.replace(/season|Temporada/gi, '').trim();
         return { animeName, secoundName, description };
     }catch (e: any){
         return { animeName: '', secoundName: '', description: '' };

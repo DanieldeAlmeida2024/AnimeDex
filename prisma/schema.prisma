@@ -10,7 +10,7 @@ datasource db {
 
 model Anime {
   id              String    @id @default(uuid())
-  imdbId          String    @unique // <-- This is crucial! Make it unique.
+  imdbId          String?  
   animefireUrl    String    @unique // <-- Keep this unique as well, it helps finding by original source.
   stremioId       String    @unique // <-- This should also be unique and is used by Stremio
   title           String
