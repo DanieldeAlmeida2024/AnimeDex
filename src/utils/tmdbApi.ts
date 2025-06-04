@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { AniListMedia, TmdbFindResponse, TmdbInfoResult, TmdbMovieTvDetails, TmdbSearchMovieResponse, TmdbSearchTvResponse } from './types/types';
+require('dotenv').config();
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || ''; 
+console.log(TMDB_API_KEY)
 
 export async function getTmdbInfoByImdbId(
     imdbId: string

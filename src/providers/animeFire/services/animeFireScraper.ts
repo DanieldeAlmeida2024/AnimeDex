@@ -117,84 +117,106 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
 export async function scrapeStreamsFromContentPage(contentUrl: string): Promise<ScrapedStream[]> {
 
     const streams: ScrapedStream[] = [];
-    let browser;
-    try {
-        browser = await puppeteer.launch({
-            headless: true,
-            executablePath: '/usr/bin/chromium-browser'
-        });
-        const page = await browser.newPage();
+    try {
+        // 1. Fazer a requisição para a contentUrl para obter a URL da página de download
+        const { data: initialPageData } = await axios.get(contentUrl.replace("-todos-os-episodios", ''), {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        const $initial = cheerio.load(initialPageData);
 
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.goto(contentUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-        await page.waitForSelector('#dw', { timeout: 15000 }); 
-        const downloadPageUrl = await page.$eval('#dw', pageElement => {
-            const href = pageElement.getAttribute('href');
-            return href;
-        });
+        // Seleciona o elemento com id 'dw' e obtém seu atributo 'href'
+        // Com Cheerio, você pode acessar atributos diretamente:
+        const downloadPageUrl = $initial('#dw').attr('href');
 
-        if (downloadPageUrl && downloadPageUrl.startsWith('https')) {
-            await page.goto(downloadPageUrl, {waitUntil: 'networkidle2', timeout: 30000});
-            await page.waitForSelector('a.quicksand300');
-            const links = await page.$$('a.quicksand300'); 
-            let streamLinkSd;
-            let streamLinkHd;
-            let streamLinkFHd;
-            for (const link of links) { 
-                const quality = await link.evaluate(node => (node.textContent ?? '').trim()); 
-                const href = (await link.evaluate(node => node.getAttribute('download')))?.split('?')[0]; 
-                console.log(`Verificações Qualidade: ${quality}, href: ${href}`)
+        if (downloadPageUrl && downloadPageUrl.startsWith('https')) {
+            console.log(`[STREAM_SCRAPER] Encontrada URL da página de download: ${downloadPageUrl}`);
+
+            // 2. Fazer a requisição para a downloadPageUrl para obter os links de stream
+            const { data: downloadPageData } = await axios.get(downloadPageUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+            });
+            const $download = cheerio.load(downloadPageData);
+
+            // Seleciona todos os links com a classe 'quicksand300'
+            const links = $download('a.quicksand300');
+
+            let streamLinkSd: string | undefined;
+            let streamLinkHd: string | undefined;
+            let streamLinkFHd: string | undefined;
+
+            // Itera sobre os links encontrados
+            links.each((index, element) => {
+                const link = $download(element); // Envolve o elemento com Cheerio para usar métodos
+                const quality = (link.text() ?? '').trim(); // Obtém o texto do link (qualidade)
+                // Obtém o atributo 'download' e remove parâmetros de query
+                const href = (link.attr('download') ?? '')?.split('?')[0];
+
+                console.log(`Verificações Qualidade: ${quality}, href: ${href}`);
+
                 if (typeof href === 'string' && (href.endsWith('.mp4') || href.endsWith('.webm') || href.endsWith('.avi') || href.endsWith('.mov') || href.endsWith('.mkv'))) {
-                    if(quality == 'SD'){
+                    if (quality === 'SD') {
                         streamLinkSd = href;
-                        continue
-                    }else if(quality == 'HD'){
+                    } else if (quality === 'HD') {
                         streamLinkHd = href;
-                        continue
-                    }else if(quality == 'F-HD'){
+                    } else if (quality === 'F-HD') {
                         streamLinkFHd = href;
-                        continue
                     }
                 } else {
                     console.log(`Qualidade: ${quality}, Não é um link de vídeo reconhecido: ${href}`);
                 }
-            }
+            });
 
-            if(streamLinkSd){
+            // Adiciona os streams ao array 'streams' se encontrados
+            if (streamLinkSd) {
                 console.log(`Stream 480p: ${streamLinkSd}`);
-                streams.push({ 
-                    url: streamLinkSd, 
+                streams.push({
+                    url: streamLinkSd,
                     name: 'AnimeFire Video 480p',
                     quality: 'SD'
                 });
             }
-            if(streamLinkHd){
+            if (streamLinkHd) {
                 console.log(`Stream 720: ${streamLinkHd}`);
                 streams.push({
-                    url: streamLinkHd, 
+                    url: streamLinkHd,
                     name: 'AnimeFire Video 720p',
                     quality: 'HD'
                 });
             }
-            if(streamLinkFHd){
+            if (streamLinkFHd) {
                 console.log(`Stream 1080p: ${streamLinkFHd}`);
-                streams.push({ 
-                    url: streamLinkFHd, 
+                streams.push({
+                    url: streamLinkFHd,
                     name: 'AnimeFire Player 1080p',
                     quality: 'F-HD'
                 });
             }
-        } else {
-            console.warn(`[STREAM_SCRAPER] Nenhuma URL de stream válida encontrada para ${contentUrl}. URL: ${downloadPageUrl}`);
-        }
 
-    } catch (error: any) {
-        console.error(`[STREAM_SCRAPER] Erro ao fazer scraping de streams com Puppeteer (${contentUrl}):`, error.message);
-    } finally {
-        if (browser) {
-            await browser.close(); 
-        }
-    }
+        } else {
+            console.warn(`[STREAM_SCRAPER] Nenhuma URL de download válida encontrada para ${contentUrl}. URL: ${downloadPageUrl}`);
+        }
+
+    } catch (error: any) {
+    if (error.response) {
+        // O servidor respondeu com um status code fora da faixa 2xx
+        console.error(`[STREAM_SCRAPER] Erro de resposta do servidor (${contentUrl}):`);
+        console.error(`Status: ${error.response.status}`);
+        console.error(`Headers: ${error.response.headers}`);
+        console.error(`Dados: ${error.response.data}`); // Isto pode conter a mensagem de erro do servidor
+    } else if (error.request) {
+        // A requisição foi feita, mas nenhuma resposta foi recebida
+        console.error(`[STREAM_SCRAPER] Nenhuma resposta recebida para a requisição (${contentUrl}):`);
+        console.error(error.request);
+    } else {
+        // Algo mais causou o erro
+        console.error(`[STREAM_SCRAPER] Erro ao configurar a requisição (${contentUrl}):`);
+        console.error('Mensagem:', error.message);
+    }
+    }
 
     return streams;
 }
@@ -246,13 +268,12 @@ async function getAnimes(url: string,type: 'movie' | 'series', page: number = 1)
             const descriptionInfo = animeInfo?.description ? animeInfo.description.trim() : '';
             const animefireUrl = articleLink.attr('href');
             const poster = articleLink.find('img.imgAnimes').attr('data-src');
-            let animeNameCleaned = animeNameWithSpecialChars.replace(/[^a-zA-Z0-9áàâãéèêíìîóòôõúùûüçÇÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÜ\s]/g, '');
 
-            if (animeNameCleaned && animefireUrl && poster) {
+            if (animeNameWithSpecialChars && animefireUrl && poster) {
                 const fullAnimefireUrl = animefireUrl.startsWith('http') ? animefireUrl : `${BASE_URL}${animefireUrl}`;
 
                 animes.push({
-                    title: animeNameCleaned,
+                    title: animeNameWithSpecialChars,
                     poster: poster,
                     animefireUrl: fullAnimefireUrl,
                     type: type,
@@ -260,7 +281,7 @@ async function getAnimes(url: string,type: 'movie' | 'series', page: number = 1)
                     description: descriptionInfo
                 });
             } else {
-                console.warn(`Skipping incomplete anime data: Title=${animeNameCleaned}, URL=${animefireUrl}, Poster=${poster}`);
+                console.warn(`Skipping incomplete anime data: Title=${animeNameWithSpecialChars}, URL=${animefireUrl}, Poster=${poster}`);
             }
         }
         return animes;

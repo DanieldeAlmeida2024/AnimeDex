@@ -28,9 +28,9 @@ async function findFirstDataBase(tmdbInfo?: TmdbInfoResult , scrapedAnime?: Scra
     }
 }
 
-export async function saveEpisodesToDb(episodes: ScrapedEpisodeAnimeFire){
+export async function saveEpisodesToDb(episodes: ScrapedEpisodeAnimeFire[]){
     await prisma.anime.update({
-        where: { animefireUrl: episodes.id },
+        where: { animefireUrl: episodes[0].id },
         data: { episodesData: JSON.stringify(episodes) }
     });
 }

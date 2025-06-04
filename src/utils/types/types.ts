@@ -12,6 +12,25 @@ export interface ScrapedAnimeAnimeFire {
     stremioId?: string;
 }
 
+export interface AnimeData {
+  id: string;
+  imdbId: string;
+  animefireUrl: string;
+  stremioId: string;
+  title: string;
+  type: string;
+  description :string;
+  poster: string;
+  background: string;
+  genres: string;
+  releaseYear:number;
+  episodesData:number;
+  createdAt:number;
+  updatedAt:number;
+  lastSearchedAt:number;
+  secoundName:string; 
+}
+
 export interface AnimeScrapedAnimeFireDb{
   id: String,  
   imdbId: String,
