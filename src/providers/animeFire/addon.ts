@@ -151,7 +151,7 @@ export async function animeFireHeadler(
                     console.warn(`[CatalogHandler] No valid TMDB info for "${scrapedAnime.title}". Skipping DB save for this item.`);
                     const tmdbInfofake: TmdbInfoResult = {
                         id: aniListMedia?.id || 1,
-                        title: scrapedAnime.title || scrapedAnime.secoundName || '',
+                        title: scrapedAnime.secoundName || scrapedAnime.title ,
                         poster: aniListMedia?.bannerImage || scrapedAnime.poster,
                         background: aniListMedia?.bannerImage || scrapedAnime.background,
                         genres: aniListMedia?.genres || scrapedAnime.genres,
@@ -187,7 +187,7 @@ export async function animeFireHeadler(
                 metas.push({
                     id: `animedex_${type}_${encodeURIComponent(animeRecord.stremioId)}`, 
                     type: animeRecord.type,
-                    name: animeRecord.title,
+                    name: animeRecord.secoundName || animeRecord.title,
                     poster: animeRecord.poster || animeRecord.background || undefined,
                     description: animeRecord.description || '',
                     genres: animeRecord.genres ? JSON.parse(animeRecord.genres) : undefined,
