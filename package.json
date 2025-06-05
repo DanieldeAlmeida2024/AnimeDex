@@ -12,7 +12,7 @@
   "keywords": [],
   "author": "Daniel de Almeida",
   "license": "ISC",
-  "description": "",
+  "description": "Addon Stremio",
   "devDependencies": {
     "@types/dotenv": "^8.2.3",
     "@types/node": "^22.15.24",
@@ -34,5 +34,18 @@
     "stremio-addon-sdk": "^1.6.10",
     "tmdb-ts": "^2.0.1",
     "tmdbv3": "^0.1.2"
-  }
+  },
+  "compilerOptions": {
+    "target": "es2018",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist", 
+    "rootDir": "./src" 
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
 }
+
