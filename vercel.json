@@ -8,7 +8,8 @@
         "includeFiles": [
           "dist/**",
           "prisma/schema.prisma",
-          "node_modules/.prisma/client/**"
+          "node_modules/.prisma/client/**",
+          "node_modules/prisma/libquery_engine-linux-arm64-openssl-3.0.x.so.node" 
         ]
       }
     }
