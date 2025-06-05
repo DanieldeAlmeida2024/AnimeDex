@@ -178,7 +178,7 @@ export async function animeFireHeadler(
                 console.log(`Dados: \n
                     id: animedex_${type}_${encodeURIComponent(animeRecord.stremioId)}\n
                     type: ${animeRecord.type} \n
-                    name: ${animeRecord.title} \n
+                    name: ${animeRecord.secoundName || animeRecord.title} \n
                     poster: ${animeRecord.poster || animeRecord.background || undefined}\n
                     description: ${animeRecord.description || ''}\n
                     genres: ${animeRecord.genres ? JSON.parse(animeRecord.genres) : undefined}\n
@@ -187,7 +187,7 @@ export async function animeFireHeadler(
                 metas.push({
                     id: `animedex_${type}_${encodeURIComponent(animeRecord.stremioId)}`, 
                     type: animeRecord.type,
-                    name: animeRecord.secoundName || animeRecord.title,
+                    name: animeRecord.secoundName && animeRecord.secoundName !== '' ? animeRecord.secoundName : (animeRecord.title ?? ''),
                     poster: animeRecord.poster || animeRecord.background || undefined,
                     description: animeRecord.description || '',
                     genres: animeRecord.genres ? JSON.parse(animeRecord.genres) : undefined,
@@ -220,7 +220,7 @@ export async function animeFireMetaHeadler(encodedUrl: string, type: string): Pr
                 anime = await prisma.anime.update({
                     where: { stremioId: animefireUrlToUse },
                     data: {
-                        title: anime?.secoundName ? anime.secoundName : anime?.title,
+                        title: details.secoundName && details.secoundName !== '' ? details.secoundName : (details.title ?? ''),
                         description: details.description ? details.description : anime?.description,
                         genres: genresAsString ? genresAsString : JSON.stringify(anime?.genres),
                         releaseYear: details.releaseYear ? details.releaseYear : anime?.releaseYear,
@@ -245,7 +245,7 @@ export async function animeFireMetaHeadler(encodedUrl: string, type: string): Pr
         meta = {
             id: `animedex_${type}_${encodeURIComponent(animefireUrlToUse)}`, 
             type: anime.type,
-            name: anime.title,
+            name: anime.secoundName && anime.secoundName !== '' ? anime.secoundName : (anime.title ?? ''),
             poster: anime.poster ?? undefined,
             description: anime.description ?? undefined,
             genres: genresAsArray,

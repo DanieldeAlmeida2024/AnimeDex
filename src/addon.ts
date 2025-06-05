@@ -1,5 +1,8 @@
-import express from 'express';
+
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk'); 
+//const express = require('express');
+const https = require('https');
+const fs = require('fs');
 import * as dotenv from 'dotenv';
 import { manifest } from './utils/manifest';
 import { ScrapedEpisodeAnimeFire, ScrapedEpisodeTorrent, ScrapedStream, ScrapedStreamAnimeFire, Stream } from './utils/types/types';
@@ -25,8 +28,15 @@ builder.defineCatalogHandler(async ({ type, id, extra }: { type: string; id: str
 });
 
 builder.defineMetaHandler(async ({ id, type }: { id: string; type: string }) => {
-        const result = await animeFireMetaHeadler(id, type);
-        return Promise.resolve(result);
+        const isImdbIdOnly = /^tt\d+$/.test(id);
+        const isStremioImdbEpisodeId = /^tt\d+:\d+:\d+$/.test(id);
+        if (isImdbIdOnly || isStremioImdbEpisodeId) {
+
+        }else{
+            const result = await animeFireMetaHeadler(id, type);
+            return Promise.resolve(result);
+        }
+        return []
 });
 
 builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; type: "series" | "movie", season?: number, episode?: number }) => {
@@ -286,6 +296,12 @@ builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; 
     return { streams };
 });
 
+
+/*
 const app = express();
+app.listen(3000, () => { // ou 5000, ou outra porta que você configurou no Nginx proxy_pass
+  console.log('Express HTTP server rodando internamente na porta 3000 (Nginx fará o proxy HTTPS)');
+});
+*/
 serveHTTP(builder.getInterface(), { port: 7000 });
-console.log('Addon is running on port 7000');
+console.log('Addon rodando na porta 7000');
