@@ -303,5 +303,5 @@ app.listen(3000, () => { // ou 5000, ou outra porta que você configurou no Ngin
   console.log('Express HTTP server rodando internamente na porta 3000 (Nginx fará o proxy HTTPS)');
 });
 */
-serveHTTP(builder.getInterface(), { port: 80 });
+serveHTTP(builder.getInterface(), { port: 7000 });
 console.log('Addon rodando na porta 7000');

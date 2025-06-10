@@ -34,8 +34,7 @@ export async function scrapeLegendadosAnimes(type: 'movie' | 'series', page: num
 
 export async function searchAnimes(query: string, page: number = 1): Promise<ScrapedAnimeAnimeFire[]> {
     let animes: ScrapedAnimeAnimeFire[] = [];
-    animes = await getSearchAnimes(animes,query, page);
-    return animes;
+    return await getSearchAnimes(animes,query, page);
 }
 
 export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<ScrapedAnimeAnimeFire> | null> {
@@ -53,6 +52,7 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
         const poster = $('div.anime_image > img').attr('src');
         const background = $('div.anime_capa > img').attr('data-src');
         const title = $('div.anime_info_principal > h1').text().trim();
+        const secoundName = $('div.div_anime_names > h6').text().trim();
         const initialTypeFromUrl: 'movie' | 'series' = animefireUrl.includes('filmes') ? 'movie' : 'series';
         const normalizedTitle = title.toLowerCase();
         const inferredType: 'movie' | 'series' = (normalizedTitle.includes('film') || normalizedTitle.includes('movie')) ? 'movie' : initialTypeFromUrl;
@@ -96,6 +96,7 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
         const scrapedDetails: Partial<ScrapedAnimeAnimeFire> = {
             animefireUrl: animefireUrl,
             title: title,
+            secoundName: secoundName,
             description: description,
             genres: genres,
             releaseYear: releaseYear ? parseInt(releaseYear, 10) : undefined,
@@ -293,7 +294,7 @@ async function getAnimes(url: string,type: 'movie' | 'series', page: number = 1)
 
 async function getSearchAnimes(animes: ScrapedAnimeAnimeFire[],query: string ,page: number=1){
 
-    const encodedQuery = encodeURIComponent(query);
+    const encodedQuery = query.replace(" ", "-");
     const url = `${BASE_URL}${SEARCH_URL}/${encodedQuery}/${page}`;
     try {
         const { data } = await axios.get(url, {
@@ -303,20 +304,20 @@ async function getSearchAnimes(animes: ScrapedAnimeAnimeFire[],query: string ,pa
         });
         const $ = cheerio.load(data);
 ;
-        $('div.card_anime').each((i, element) => {
+        $('div.divCardUltimosEps').each((i, element) => {
             const articleLink = $(element).find('article > a');
-            const titleElement = articleLink.find('div.text-block > h3.animeTitle');
+            const titleElement = articleLink.find('h3.animeTitle');
             const title = titleElement.text().trim();
             const animefireUrl = articleLink.attr('href');
-            const poster = articleLink.find('img.transitioning_src').attr('data-src');
+            const poster = articleLink.find('img.imgAnimes').attr('data-src');
 
             if (title && animefireUrl && poster) {
                 const type = animefireUrl.includes('/filme/') ? 'movie' : 'series';
                 animes.push({
                     title: title,
                     poster: poster,
-                    animefireUrl: `${BASE_URL}${animefireUrl}`,
-                    type: type as 'movie' | 'series',
+                    animefireUrl: animefireUrl,
+                    type: type,
                 });
             }
         });

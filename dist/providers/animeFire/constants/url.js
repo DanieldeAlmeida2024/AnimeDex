@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SERIES_SUBTITLED_URL = exports.SERIES_UPGRADED_URL = exports.SERIES_TOP_URL = exports.SEARCH_URL = exports.RECENT_SERIES_URL = exports.SERIES_BR_URL = exports.MOVIES_SUBTITLED_URL = exports.MOVIES_BR_URL = exports.PROVIDER_URL = void 0;
+exports.PROVIDER_URL = 'https://animefire.plus';
+exports.MOVIES_BR_URL = '/lista-de-filmes-dublados';
+exports.MOVIES_SUBTITLED_URL = '/lista-de-filmes-legendados';
+exports.SERIES_BR_URL = '/lista-de-animes-dublados';
+exports.RECENT_SERIES_URL = '/em-lancamento';
+exports.SEARCH_URL = '/pesquisar';
+exports.SERIES_TOP_URL = '/top-animes';
+exports.SERIES_UPGRADED_URL = '/animes-atualizados';
+exports.SERIES_SUBTITLED_URL = '/lista-de-animes-legendados';

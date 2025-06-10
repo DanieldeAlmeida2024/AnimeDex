@@ -21,8 +21,8 @@ export async function animeFireHeadler(
 
     // --- Lógica de Scraping/Busca de Animes ---
     if (search?.search) {
-        console.log(`[CatalogHandler] Performing search for: "${search.search}" on page ${page}`);
-        scrapedAnimes = await searchAnimes(search, page); // Passar search diretamente como string
+        console.log(`[CatalogHandler] Performing search for: "${search}" on page ${page}`);
+        scrapedAnimes = await searchAnimes(search, page); 
     } else {
         console.log(`[CatalogHandler] Fetching catalog: ${id} (Page: ${page})`);
         switch (id) {
