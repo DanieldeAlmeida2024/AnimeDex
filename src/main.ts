@@ -153,7 +153,7 @@ builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; 
                 }
                 if (animeRecord && animeRecord.id) {
                     await prisma.anime.updateMany({
-                        where: { imdbId: animeRecord.imdbId },
+                        where: { stremioId: animeRecord.stremioId },
                         data: { episodesData: JSON.stringify(updatedEpisodesData) }
                     });
                     console.log(`[StreamHandler] ✅ Episódios de torrent/magnet atualizados no DB para ${animeRecord.title}.`);
@@ -165,37 +165,17 @@ builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; 
             console.log(`[StreamHandler] 🎯 ID detectado como URL codificada do AnimeFire: "${id}".`);
 
             let animefireUrl: string | null = null;
-            let currentSeason = season;
-            let currentEpisode = episode;
+            let currentSeason = parseInt(id.split(':')[1]); 
+            let currentEpisode = parseInt(id.split(':')[2]);
             let animefireContentUrl: string;
             try {
                 const lastColonIndex = id.lastIndexOf(':');
                 if (lastColonIndex === -1) {
                     throw new Error('ID não possui o formato esperado (URL:S#E#).');
                 }
-                animefireUrl = decodeURIComponent(id.substring(0, lastColonIndex));
-                const seasonEpisodePart = id.substring(lastColonIndex + 1);
+                animefireUrl = decodeURIComponent(id.split(':')[0]);
 
-                if (type === 'series') {
-                    // Regex para extrair S e E
-                    const match = seasonEpisodePart.match(/^S(\d+)E(\d+)$/);
 
-                    if (match) {
-                        currentSeason = parseInt(match[1], 10);
-                        currentEpisode = parseInt(match[2], 10);
-                        console.log(`[StreamHandler] Series ID format detected. Base URL: ${animefireUrl}, S:${currentSeason}, E:${currentEpisode}`);
-                    } else {
-                        // Fallback or throw error if S#E# format is not matched
-                        console.warn(`[StreamHandler] Unexpected season/episode format: ${seasonEpisodePart}. Defaulting to S1E1.`);
-                        currentSeason = 1;
-                        currentEpisode = 1;
-                    }
-                } else {
-                    // Para 'movie' ou outros tipos que não esperam S#E#
-                    // Neste caso, se o ID for "URL:S#E#", a parte S#E# será ignorada para filmes.
-                    // Se for apenas "URL", `lastColonIndex` será -1 (já tratado acima) ou o id.substring(lastColonIndex + 1) será vazio.
-                    console.log(`[StreamHandler] Movie/Base URL format detected: ${animefireUrl}`);
-                }
             } catch (e: any) {
                 console.error(`[StreamHandler] ❌ Erro ao decodificar/validar ID AnimeFire "${id}": ${e.message}`);
                 return { streams: [] };
@@ -240,6 +220,7 @@ builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; 
                                 // Use o título do registro do DB se disponível, ou um padrão
                                 title: animeRecordFromDb.title || `S${currentSeason}E${currentEpisode} (AnimeFire)`,
                                 url: animefireContentUrl,
+                                behaviorHints: {"bingeGroup":encodeURIComponent(animefireUrl)}
                             });
                         } else {
                             console.warn(`[ADDON MAIN] Episódio encontrado ${foundEpisode.episode} não possui 'episodeUrl'.`);
@@ -262,7 +243,84 @@ builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; 
                             });
                         }
                     }
-                    return {streams}
+                    if(streams.length === 0) {
+                        //----------------------------------------------------------
+
+
+
+                        const episodesData: ScrapedEpisodeTorrent[] = animeRecordFromDb?.episodesData ? JSON.parse(animeRecordFromDb.episodesData) : [];
+                        const existingTorrentStream = episodesData.find(ep =>
+                            (ep.season ?? null) === (currentSeason ?? null) &&
+                            (ep.episode ?? null) === (currentEpisode ?? null) &&
+                            (ep.url !== '' && ep.url !== null && ep.url !== undefined)
+                        );
+
+                        if (existingTorrentStream) {
+                            console.log(`[StreamHandler] ✅ Stream de torrent/magnet existente encontrado no DB para S${currentSeason}E${currentEpisode}.`);
+                            streams.push({
+                                name: existingTorrentStream.source ?? 'Real-Debrid',
+                                title: existingTorrentStream.title,
+                                url: existingTorrentStream.url ?? ''
+                            });
+                        }
+                        else {
+                            console.log(`[StreamHandler] 🔎 Nenhum stream de torrent/magnet cacheado. Raspando magnet links...`);
+                            const scrapeOptions = {
+                                imdbId: animeRecordFromDb.imdbId,
+                                type: animeRecordFromDb.type,
+                                name: animeRecordFromDb.title,
+                                season: currentSeason,
+                                episode: currentEpisode,
+                            };
+                            const magnetLinks = await scrapeMagnetLinks(scrapeOptions);
+
+                            let updatedEpisodesData = [...episodesData];
+
+                            for (const link of magnetLinks) {
+                                if (link.url) {
+                                    streams.push({
+                                        name: link.name || 'Real-Debrid',
+                                        title: link.title || `S${currentSeason}E${currentEpisode}`,
+                                        url: link.url
+                                    });
+
+                                    // Adiciona/Atualiza o episódio no cache
+                                    const existingIndex = updatedEpisodesData.findIndex(ep =>
+                                        (ep.season ?? null) === (currentSeason ?? null) &&
+                                        (ep.episode ?? null) === (currentEpisode ?? null)
+                                    );
+                                    if (existingIndex > -1) {
+                                        updatedEpisodesData[existingIndex] = { ...updatedEpisodesData[existingIndex], ...link };
+                                    } else {
+                                        updatedEpisodesData.push({
+                                            season: currentSeason,
+                                            episode: currentEpisode,
+                                            title: link.title ?? '',
+                                            magnet: link.magnet ?? '',
+                                            source: link.name,
+                                            url: link.url,
+                                            animeFireStream: link.animeFire
+                                        });
+                                    }
+                                }
+                            } 
+                            if (animeRecordFromDb && animeRecordFromDb.id) {
+                                await prisma.anime.updateMany({
+                                    where: { stremioId: animeRecordFromDb.stremioId },
+                                    data: { episodesData: JSON.stringify(updatedEpisodesData) }
+                                });
+                                console.log(`[StreamHandler] ✅ Episódios de torrent/magnet atualizados no DB para ${animeRecordFromDb.title}.`);
+                            }
+                        }
+
+
+
+
+                        //-----------------------------------------------------------
+                    } else {
+                        return {streams}
+                    }
+
                 }
 
 
@@ -284,7 +342,16 @@ builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; 
                             });
                         }
                     }
-                    return {streams}
+                    if(streams.length === 0) {
+                        //----------------------------------------------------------
+
+
+
+
+                        //-----------------------------------------------------------
+                    } else {
+                        return {streams}
+                    }
             }
         }
     } catch (error: any) {

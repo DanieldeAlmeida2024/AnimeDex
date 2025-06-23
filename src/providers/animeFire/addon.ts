@@ -273,7 +273,7 @@ export async function animeFireMetaHeadler(encodedUrl: string, type: string): Pr
             releaseInfo: anime.releaseYear?.toString(),
             background: anime.background ?? undefined,
             videos: type === 'series' && details?.episodes && details.episodes.length > 0 ? details.episodes.map(ep => ({
-                id: `${encodeURIComponent(animefireUrlToUse)}:S${ep.season ?? 1}E${ep.episode}`, 
+                id: `${encodeURIComponent(animefireUrlToUse)}:${ep.season ?? 1}:${ep.episode}`, 
                 title: ep.title,
                 season: ep.season ?? 1,
                 episode: ep.episode,
@@ -360,16 +360,15 @@ export async function animeFireStreamHeadler(
 }
 
 export async function scrapeAnimeFireDirectStreams(
-    animefireBaseUrl: string, // Recebe a URL base do anime (decodificada)
+    animefireBaseUrl: string, 
     season?: number,
     episode?: number,
-    type?: 'movie' | 'series' // Recebe o tipo para determinar o fluxo
-): Promise<ScrapedStream[]> { // Retorna um array de ScrapedStreamAnimeFire
+    type?: 'movie' | 'series' 
+): Promise<ScrapedStream[]> { 
     console.log(`[AnimeFireDirectScraper] Iniciando scraping para URL Base: ${animefireBaseUrl}, Tipo: ${type}, S:${season}, E:${episode}`);
 
     if (!animefireBaseUrl || !animefireBaseUrl.startsWith(BASE_URL)) {
         console.error(`[AnimeFireDirectScraper] URL base inválida: ${animefireBaseUrl}`);
-        // Retorne um array vazio em caso de erro, conforme a Promise<ScrapedStreamAnimeFire[]>
         return [];
     }
 

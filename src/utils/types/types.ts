@@ -166,6 +166,7 @@ export type Stream = {
     title?: string;
     url: string;
     magnet?: string;
+    behaviorHints?: Record<string, any>; // Dicionário para armazenar informações adicionais
 };
 
 export interface ScrapedTorrentStream extends ScrapedStream {
@@ -176,9 +177,9 @@ export interface ScrapedTorrentStream extends ScrapedStream {
 }
 
 export interface ScrapeOptions {
-    imdbId: string;
-    type?: 'movie' | 'series';
-    name?: string; // Nome do anime/filme, pode ser usado para refinar a busca
+    imdbId: string | null; 
+    type?: string | 'movie' | 'series'; 
+    name?: string; 
     season?: number;
     episode?: number;
 }
