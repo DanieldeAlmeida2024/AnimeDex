@@ -12,7 +12,8 @@ export async function getTmdbInfoByImdbId(
         const response = await axios.get<TmdbFindResponse>(`https://api.themoviedb.org/3/find/${imdbId}`, {
             params: {
                 api_key: TMDB_API_KEY,
-                external_source: 'imdb_id' // Adicionar external_source para especificar que é um imdb_id
+                external_source: 'imdb_id', // Adicionar external_source para especificar que é um imdb_id
+                language: 'pt-BR' // Define o idioma para português do Brasil
             }
         });
 
@@ -77,7 +78,8 @@ export async function getTmdbInfoByName(
             const movieResponse = await axios.get<TmdbSearchMovieResponse>(`https://api.themoviedb.org/3/search/movie`, {
                 params: {
                     api_key: TMDB_API_KEY,
-                    query: name
+                    query: name,
+                    language: 'pt-BR' // Define o idioma para português do Brasil
                 }
             });
 
@@ -89,7 +91,8 @@ export async function getTmdbInfoByName(
                         const movieDetailsResponse = await axios.get<TmdbMovieTvDetails>(`https://api.themoviedb.org/3/movie/${movie.id}`, {
                             params: {
                                 api_key: TMDB_API_KEY,
-                                append_to_response: 'external_ids' // SOLICITA OS IDs EXTERNOS
+                                append_to_response: 'external_ids', // SOLICITA OS IDs EXTERNOS
+                                language: 'pt-BR' // Define o idioma para português do Brasil
                             }
                         });
                         const movieDetails = movieDetailsResponse.data;
@@ -105,6 +108,7 @@ export async function getTmdbInfoByName(
                             releaseYear: releaseYear,
                             description: movieDetails.overview || movie.overview || undefined,
                             type: "movie",
+
                             imdbId: movieDetails.external_ids?.imdb_id // RETORNA O IMDb ID CORRETO
                         };
                     }
@@ -118,7 +122,8 @@ export async function getTmdbInfoByName(
             const tvResponse = await axios.get<TmdbSearchTvResponse>(`https://api.themoviedb.org/3/search/tv`, {
                 params: {
                     api_key: TMDB_API_KEY,
-                    query: aniListMedia.title.english
+                    query: aniListMedia.title.english,
+                    language: 'pt-BR' // Define o idioma para português do Brasil
                 }
             });
 
@@ -132,7 +137,8 @@ export async function getTmdbInfoByName(
                     const tvDetailsResponse = await axios.get<TmdbMovieTvDetails>(`https://api.themoviedb.org/3/tv/${tvShow.id}`, {
                         params: {
                             api_key: TMDB_API_KEY,
-                            append_to_response: 'external_ids' // SOLICITA OS IDs EXTERNOS
+                            append_to_response: 'external_ids', // SOLICITA OS IDs EXTERNOS
+                            language: 'pt-BR' // Define o idioma para português do Brasil
                         }
                     });
                     const tvDetails = tvDetailsResponse.data;

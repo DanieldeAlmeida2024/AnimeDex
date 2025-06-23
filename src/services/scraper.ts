@@ -1,5 +1,6 @@
 import { searchAnimeTorrentsDarkmahou } from '../providers/darkmahou/services/darkmahouScraper';
 import { searchAnimeTorrentsNyaa } from '../providers/nyaa/services/nyaaScraper';
+import { extractImdbIdFromGoogle } from '../utils/GoogleSearch';
 import { ScrapedEpisodeTorrent ,ScrapedStream, ScrapeOptions } from '../utils/types/types';
 
 export async function scrapeMagnetLinks(options: ScrapeOptions): Promise<ScrapedStream[]> {
@@ -22,4 +23,8 @@ export async function scrapeMagnetLinks(options: ScrapeOptions): Promise<Scraped
     }
 
     return streams;
+}
+
+export async function scrapeImdbInfoForGoogle(nome:string): Promise<string | null> {
+    return await extractImdbIdFromGoogle(nome);
 }

@@ -6,6 +6,7 @@ import {  getTmdbInfoByImdbId, getTmdbInfoByName } from '../../utils/tmdbApi';
 import {  findUnique, saveAnimeToDb, saveEpisodesToDb, updateAnimeToDb } from '../../persistence/db';
 import { getAnimeFromAniList } from '../../utils/aniListApi';
 import { PrismaClient } from '@prisma/client';
+import { scrapeImdbInfoForGoogle } from '../../services/scraper';
 const prisma = new PrismaClient();
 const BASE_URL = PROVIDER_URL;
 
@@ -148,30 +149,50 @@ export async function animeFireHeadler(
                         continue
                     }
                 } else {
-                    console.warn(`[CatalogHandler] No valid TMDB info for "${scrapedAnime.title}". Skipping DB save for this item.`);
-                    const tmdbInfofake: TmdbInfoResult = {
-                        id: aniListMedia?.id || 1,
-                        title: scrapedAnime.secoundName || scrapedAnime.title ,
-                        poster: aniListMedia?.bannerImage || scrapedAnime.poster,
-                        background: aniListMedia?.bannerImage || scrapedAnime.background,
-                        genres: aniListMedia?.genres || scrapedAnime.genres,
-                        releaseYear: scrapedAnime.releaseYear,
-                        imdbId: 'FAKE',
-                        type: scrapedAnime.type
-                    };
-                    let savedAnime = await saveAnimeToDb(tmdbInfofake, scrapedAnime);
-                    if (savedAnime){
+                    const consultaImdbOnGoogle = await scrapeImdbInfoForGoogle(scrapedAnime.title);
+                    if(consultaImdbOnGoogle){
+                        console.log(`[CatalogHandler] Found IMDb ID via Google search: ${consultaImdbOnGoogle}`);
+                        tmdbInfo = await getTmdbInfoByImdbId(consultaImdbOnGoogle);
+                        if (tmdbInfo) {
+                            console.log(`[CatalogHandler] Found TMDB info via Google search.`);
+                            let savedAnime = await saveAnimeToDb(tmdbInfo, scrapedAnime);
+                            if (savedAnime){
+                            }else if(!savedAnime){
+                                savedAnime = await updateAnimeToDb(tmdbInfo, scrapedAnime);
+                            } else {
+                                console.warn(`[CatalogHandler] Failed to save anime record for "${scrapedAnime.title}". Skipping.`);
+                                continue
+                            }
+                        } else {
+                            console.warn(`[CatalogHandler] No valid TMDB info found for "${scrapedAnime.title}" even after Google search.`);
+                        }
+                        continue;
+                    }else{  
+                        console.warn(`[CatalogHandler] No valid TMDB info for "${scrapedAnime.title}". Skipping DB save for this item.`);
+                        const tmdbInfofake: TmdbInfoResult = {
+                            id: aniListMedia?.id || 1,
+                            title: scrapedAnime.secoundName || scrapedAnime.title ,
+                            poster: aniListMedia?.bannerImage || scrapedAnime.poster,
+                            background: aniListMedia?.bannerImage || scrapedAnime.background,
+                            genres: aniListMedia?.genres || scrapedAnime.genres,
+                            releaseYear: scrapedAnime.releaseYear,
+                            imdbId: 'FAKE',
+                            type: scrapedAnime.type
+                        };
+                        let savedAnime = await saveAnimeToDb(tmdbInfofake, scrapedAnime);
+                        if (savedAnime){
+                        }else if(!savedAnime){
+                            savedAnime = await updateAnimeToDb(tmdbInfofake, scrapedAnime);
+                        }
+                        if (savedAnime) {
+                            animeRecord = savedAnime;
+                            console.log(`[CatalogHandler] New anime record saved for "${scrapedAnime.title}".`);
+                        } else {
+                            console.warn(`[CatalogHandler] Failed to save anime record for "${scrapedAnime.title}". Skipping.`);
+                            continue
+                        }
+                    }
 
-                    }else if(!savedAnime){
-                        savedAnime = await updateAnimeToDb(tmdbInfofake, scrapedAnime);
-                    }
-                    if (savedAnime) {
-                        animeRecord = savedAnime;
-                        console.log(`[CatalogHandler] New anime record saved for "${scrapedAnime.title}".`);
-                    } else {
-                        console.warn(`[CatalogHandler] Failed to save anime record for "${scrapedAnime.title}". Skipping.`);
-                        continue
-                    }
                 }
             } else {
                 console.log(`[CatalogHandler] Anime "${scrapedAnime.title}" found in DB.`);

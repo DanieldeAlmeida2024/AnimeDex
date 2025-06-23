@@ -222,11 +222,6 @@ export async function scrapeStreamsFromContentPage(contentUrl: string): Promise<
     return streams;
 }
 
-async function getUrlStremAnimeFire(contentUrl: string){
-
-    
-}
-
 async function getAnimeInfo(urlAnimeFire: string): Promise<{animeName: string, secoundName: string, description: string}>{
     let animeName;
     let secoundName;
@@ -295,7 +290,7 @@ async function getAnimes(url: string,type: 'movie' | 'series', page: number = 1)
 async function getSearchAnimes(animes: ScrapedAnimeAnimeFire[],query: string ,page: number=1){
 
     const encodedQuery = query.replace(" ", "-");
-    const url = `${BASE_URL}${SEARCH_URL}/${encodedQuery}/${page}`;
+    const url = `${BASE_URL}${SEARCH_URL}/${encodedQuery}`;
     try {
         const { data } = await axios.get(url, {
             headers: {
@@ -303,7 +298,7 @@ async function getSearchAnimes(animes: ScrapedAnimeAnimeFire[],query: string ,pa
             }
         });
         const $ = cheerio.load(data);
-;
+
         $('div.divCardUltimosEps').each((i, element) => {
             const articleLink = $(element).find('article > a');
             const titleElement = articleLink.find('h3.animeTitle');

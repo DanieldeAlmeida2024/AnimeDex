@@ -14,7 +14,7 @@ async function findFirstDataBase(tmdbInfo?: TmdbInfoResult , scrapedAnime?: Scra
         const stremioId = encodeURIComponent(scrapedAnime?.animefireUrl ?? '');
         const record = await prisma.anime.findFirst({
             where: {
-                stremioId: tmdbInfo?.imdbId ? tmdbInfo?.imdbId : stremioId
+                stremioId: tmdbInfo?.imdbId ? tmdbInfo.imdbId : stremioId
             } 
         });
         return record; 
@@ -41,7 +41,7 @@ export async function updateAnimeToDb(
     try {
             await prisma.anime.updateMany({
                 where: { 
-                    stremioId: tmdbInfo?.imdbId ? tmdbInfo.imdbId : undefined, 
+                    stremioId: (tmdbInfo?.imdbId && tmdbInfo.imdbId != "FAKE") ? tmdbInfo.imdbId : encodeURIComponent(scrapedAnime.animefireUrl), 
                 },
                 data: {
                     title: scrapedAnime.title,
@@ -70,18 +70,19 @@ export async function saveAnimeToDb(
             console.error("IMDb ID é obrigatório, mas não foi fornecido.");
             return false; 
         }
+        const isDublado = scrapedAnime.animefireUrl?.toLowerCase().includes('dublado');
             await prisma.anime.create({
                 data: {
-                    title: scrapedAnime.title,
+                    title: isDublado ? `${tmdbInfo.title} Dublado` : tmdbInfo.title,
                     poster: tmdbInfo?.poster,
                     type: scrapedAnime.type,
                     animefireUrl: scrapedAnime.animefireUrl,
                     imdbId: tmdbInfo.imdbId, 
                     stremioId: stremioId ,
-                    secoundName: scrapedAnime.secoundName,
+                    secoundName: scrapedAnime?.secoundName ? (isDublado ? `${scrapedAnime.secoundName} Dublado` : scrapedAnime.secoundName) : null,
                     description: tmdbInfo?.description,
                     background: tmdbInfo?.background,
-                    genres: scrapedAnime.genres ? JSON.stringify(scrapedAnime.genres) : null,
+                    genres: tmdbInfo.genres ? JSON.stringify(tmdbInfo.genres) : scrapedAnime?.genres ? JSON.stringify(scrapedAnime.genres) : null,
                     releaseYear: tmdbInfo?.releaseYear || scrapedAnime.releaseYear
                 }
             });
