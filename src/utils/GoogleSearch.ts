@@ -1,11 +1,9 @@
 function extractImdbId(url:string) {
-    // This regex looks for "tt" followed by one or more digits.
-    // It will not include any leading or trailing slashes in its match.
     const match = url.match(/tt\d+/);
     if (match) {
-        return match[0]; // Returns the exact matched string (e.g., "tt1234567")
+        return match[0]; 
     } else {
-        return null; // Returns null if no IMDb code is found
+        return null; 
     }
 }
 export async function extractImdbIdFromGoogle(nome: string): Promise<string | null> {

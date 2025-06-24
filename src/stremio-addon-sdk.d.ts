@@ -1,9 +1,3 @@
-// stremio-addon-sdk.d.ts
-
-// Declaração básica para o módulo stremio-addon-sdk
-// Isso informa ao TypeScript que este módulo existe e exporta uma classe Addon.
-// Você pode adicionar mais detalhes de tipo aqui conforme a necessidade,
-// mas para começar, isso resolve o erro TS7016.
 declare module 'stremio-addon-sdk' {
     export interface Manifest {
         id: string;
@@ -12,7 +6,7 @@ declare module 'stremio-addon-sdk' {
         description: string;
         resources: string[];
         types: string[];
-        catalogs: any[]; // Pode ser mais específico se necessário
+        catalogs: any[]; 
         detailPage?: any;
     }
 
@@ -22,7 +16,7 @@ declare module 'stremio-addon-sdk' {
         extra: {
             search?: string;
             skip?: string;
-            [key: string]: any; // Para outras propriedades extras
+            [key: string]: any; 
         };
     }
 
@@ -44,7 +38,7 @@ declare module 'stremio-addon-sdk' {
         description?: string;
         genres?: string[];
         releaseInfo?: string | number;
-        videos?: any[]; // Para séries
+        videos?: any[]; 
         [key: string]: any;
     }
 
@@ -52,11 +46,10 @@ declare module 'stremio-addon-sdk' {
         name?: string;
         title?: string;
         url: string;
-        ytId?: string; // Para streams do YouTube
-        externalUrl?: string; // Para streams de outras fontes
-        infoHash?: string; // Para torrents
+        ytId?: string; 
+        externalUrl?: string; 
+        infoHash?: string;
         fileIdx?: number;
-        // Adicione outras propriedades de stream conforme a documentação do Stremio SDK
     }
 
     export class Addon {
@@ -68,6 +61,4 @@ declare module 'stremio-addon-sdk' {
         getManifest(): Manifest;
     }
 
-    // Exporta a classe Addon para ser usada no seu código
-    export { Addon };
 }

@@ -64,7 +64,6 @@ export async function getImdbIdFromAniList(animeName: string, desiredStremioType
             // Se não encontrou uma correspondência exata de tipo, use o primeiro resultado mais relevante
             if (!selectedAniListInfo) {
                 selectedAniListInfo = media.find(item => item.title.english === animeName) ?? null;
-                console.log(`[AniList] Nenhuma correspondência exata de tipo (${desiredStremioType}) encontrada para "${animeName}". Usando o primeiro resultado (formato: ${selectedAniListInfo?.format}).`);
             } else {
                  console.log(`[AniList] Correspondência de tipo (${desiredStremioType}) encontrada para "${selectedAniListInfo.title.english}" (formato: ${selectedAniListInfo.format}).`);
             }
@@ -152,17 +151,9 @@ export async function getAnimeFromAniList(animeName: string, secoundName: string
         const media = response.data.data.Page.media;
         if (media && media.length > 0) {
             let selectedAniListInfo: AniListMedia | null = null;
-            console.log(`[AniList] Resultado da consulta: ${media.find(item =>
-                    item.format === 'TV' || 
-                    item.format === 'OVA'  || 
-                    item.format === 'ONA' || 
-                    item.format === 'SPECIAL' 
-                )}`)
-            // Tenta encontrar o resultado que corresponde ao tipo desejado
             if (desiredStremioType === 'movie') {
                 selectedAniListInfo = media.find(item => item.format === 'MOVIE') || null;
             } else if (desiredStremioType === 'series') {
-                // AniList tem 'TV', 'OVA', 'ONA', 'SPECIAL' para séries
                 selectedAniListInfo = media.find(item =>
                     item.format === 'TV' || 
                     item.format === 'OVA' || 
@@ -171,17 +162,16 @@ export async function getAnimeFromAniList(animeName: string, secoundName: string
                 ) || null;
             }
 
-            // Se não encontrou uma correspondência exata de tipo, use o primeiro resultado mais relevante
             if (!selectedAniListInfo) {
                 selectedAniListInfo = media.find(item => item.title.english === secoundName) ?? null;
                 console.log(`[AniList] Nenhuma correspondência exata de tipo (${desiredStremioType}) encontrada para "${animeName}". Usando o resultado com título em inglês igual a "${selectedAniListInfo?.title}" ou o primeiro resultado (formato: ${selectedAniListInfo?.format}).`);
             } else {
                  console.log(`[AniList] Correspondência de tipo (${desiredStremioType}) encontrada para "${selectedAniListInfo.title.romaji}" (formato: ${selectedAniListInfo.format}).`);
             }
-            return selectedAniListInfo; // Nenhum link IMDb encontrado
+            return selectedAniListInfo;
         } else {
             console.log(`[AniList] Nenhum anime encontrado no AniList para a pesquisa: "${animeName}" (Tipo: ${desiredStremioType})`);
-            return null; // Nenhum anime encontrado
+            return null; 
         }
     } catch (error: any) {
         if (axios.isAxiosError(error) && error.response) {

@@ -3,7 +3,6 @@ import { AniListMedia, TmdbFindResponse, TmdbInfoResult, TmdbMovieTvDetails, Tmd
 require('dotenv').config();
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY; 
-console.log(TMDB_API_KEY)
 
 export async function getTmdbInfoByImdbId(
     imdbId: string
@@ -12,8 +11,8 @@ export async function getTmdbInfoByImdbId(
         const response = await axios.get<TmdbFindResponse>(`https://api.themoviedb.org/3/find/${imdbId}`, {
             params: {
                 api_key: TMDB_API_KEY,
-                external_source: 'imdb_id', // Adicionar external_source para especificar que é um imdb_id
-                language: 'pt-BR' // Define o idioma para português do Brasil
+                external_source: 'imdb_id', 
+                language: 'pt-BR' 
             }
         });
 
@@ -41,11 +40,11 @@ export async function getTmdbInfoByImdbId(
 
         return {
             id: tmdbDetails.id,
-            title: tmdbDetails.title || tmdbDetails.name || '', // Usa 'title' para filmes, 'name' para séries
-            imdbId: imdbId, // Já temos o imdbId que usamos para buscar
+            title: tmdbDetails.title || tmdbDetails.name || '', 
+            imdbId: imdbId, 
             poster: tmdbDetails.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbDetails.poster_path}` : undefined,
             background: tmdbDetails.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbDetails.backdrop_path}` : undefined,
-            genres: tmdbDetails.genres ? tmdbDetails.genres.map(genre => genre.name) : undefined, // Mapeia para nomes de gêneros
+            genres: tmdbDetails.genres ? tmdbDetails.genres.map(genre => genre.name) : undefined, 
             releaseYear: (mediaType === "series" && tmdbDetails.first_air_date) ? new Date(tmdbDetails.first_air_date).getFullYear() :
                          ((mediaType === "movie" && tmdbDetails.release_date) ? new Date(tmdbDetails.release_date).getFullYear() : undefined),
             description: tmdbDetails.overview || undefined,
@@ -73,13 +72,12 @@ export async function getTmdbInfoByName(
     }
 
     try {
-        // --- BUSCA POR FILMES ---
         if (type === "movie" || !type) {
             const movieResponse = await axios.get<TmdbSearchMovieResponse>(`https://api.themoviedb.org/3/search/movie`, {
                 params: {
                     api_key: TMDB_API_KEY,
                     query: name,
-                    language: 'pt-BR' // Define o idioma para português do Brasil
+                    language: 'pt-BR' 
                 }
             });
 
@@ -91,16 +89,13 @@ export async function getTmdbInfoByName(
                         const movieDetailsResponse = await axios.get<TmdbMovieTvDetails>(`https://api.themoviedb.org/3/movie/${movie.id}`, {
                             params: {
                                 api_key: TMDB_API_KEY,
-                                append_to_response: 'external_ids', // SOLICITA OS IDs EXTERNOS
-                                language: 'pt-BR' // Define o idioma para português do Brasil
+                                append_to_response: 'external_ids', 
+                                language: 'pt-BR' 
                             }
                         });
                         const movieDetails = movieDetailsResponse.data;
-
-                        console.log(`[TMDB API] Filme encontrado: ${movieDetails.title || movie.title}, IMDb ID: ${movieDetails.external_ids?.imdb_id}`);
-
                         return {
-                            id: movie.id, // ID do TMDB
+                            id: movie.id, 
                             title: movieDetails.title || movie.title,
                             poster: movieDetails.poster_path ? `https://image.tmdb.org/t/p/w500${movieDetails.poster_path}` : undefined,
                             background: movieDetails.backdrop_path ? `https://image.tmdb.org/t/p/original${movieDetails.backdrop_path}` : undefined,
@@ -109,45 +104,36 @@ export async function getTmdbInfoByName(
                             description: movieDetails.overview || movie.overview || undefined,
                             type: "movie",
 
-                            imdbId: movieDetails.external_ids?.imdb_id // RETORNA O IMDb ID CORRETO
+                            imdbId: movieDetails.external_ids?.imdb_id 
                         };
                     }
                 }
             }
         }
 
-        // --- BUSCA POR SÉRIES DE TV ---
         if (type === "series" || !type) {
-            console.log(`[TMDB API] Entrou no bloco séries de getTmdbByName`)
             const tvResponse = await axios.get<TmdbSearchTvResponse>(`https://api.themoviedb.org/3/search/tv`, {
                 params: {
                     api_key: TMDB_API_KEY,
                     query: aniListMedia.title.english,
-                    language: 'pt-BR' // Define o idioma para português do Brasil
+                    language: 'pt-BR' 
                 }
             });
 
-            console.log(tvResponse)
-
             if (tvResponse.data.results && tvResponse.data.results.length > 0) {
-                console.log(`[tmdb api] resultado da busca`)
                 for (const tvShow of tvResponse.data.results) {
                     const releaseYear = tvShow.first_air_date ? new Date(tvShow.first_air_date).getFullYear() : undefined;
-                    console.log(`[TMDB - API] Retorno de consulta pelo nome: ${name}, dados do objeto: ${tvShow}`)
                     const tvDetailsResponse = await axios.get<TmdbMovieTvDetails>(`https://api.themoviedb.org/3/tv/${tvShow.id}`, {
                         params: {
                             api_key: TMDB_API_KEY,
-                            append_to_response: 'external_ids', // SOLICITA OS IDs EXTERNOS
-                            language: 'pt-BR' // Define o idioma para português do Brasil
+                            append_to_response: 'external_ids', 
+                            language: 'pt-BR' 
                         }
                     });
                     const tvDetails = tvDetailsResponse.data;
-
-                    console.log(`[TMDB API] Série encontrada: ${tvDetails.name || tvShow.name}, IMDb ID: ${tvDetails.external_ids?.imdb_id}`);
-
                     return {
-                        id: tvShow.id, // ID do TMDB
-                        imdbId: tvDetails.external_ids?.imdb_id, // RETORNA O IMDb ID CORRETO
+                        id: tvShow.id, 
+                        imdbId: tvDetails.external_ids?.imdb_id, 
                         title: tvDetails.name || tvShow.name || '',
                         poster: tvDetails.poster_path ? `https://image.tmdb.org/t/p/w500${tvDetails.poster_path}` : undefined,
                         background: tvDetails.backdrop_path ? `https://image.tmdb.org/t/p/original${tvDetails.backdrop_path}` : undefined,
@@ -162,5 +148,5 @@ export async function getTmdbInfoByName(
     } catch (error: any) {
         console.error(`[TMDB API] Erro ao buscar info no TMDB para "${name}":`, error.message);
     }
-    return null; // Retorna null se nenhuma correspondência validada for encontrada
+    return null;
 }

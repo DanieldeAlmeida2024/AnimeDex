@@ -15,8 +15,6 @@ import axios from "axios";
  * @returns {Promise<any | null>} Um objeto com as informações da meta do Stremio se encontrado, ou null.
  */
 export async function getExistingStremioMetaByTitleAndType(title: string, type: 'movie' | 'series'): Promise<any | null> {
-    console.log(`[ADDON ANIMEFIRE] Tentando buscar meta no Cinemeta para: "${title}" (Tipo: ${type})`);
-
     const CINEMETA_URL = 'https://v3.stremio.com'; // URL base do Cinemeta v3
     // Cinemeta usa 'imdb_id' ou 'tmdb_id' para meta requests diretos.
     // Para buscar por título, precisaríamos usar o catálogo e filtrar.
@@ -47,7 +45,6 @@ export async function getExistingStremioMetaByTitleAndType(title: string, type: 
             );
 
             if (matchingMeta) {
-                console.log(`[ADDON ANIMEFIRE] Meta Stremio existente encontrada no Cinemeta para: "${title}" (ID: ${matchingMeta.id})`);
                 // Retorna um objeto formatado para ser compatível com saveAnimesToDatabase e a construção da meta.
                 // Note que o Cinemeta pode não ter todos os campos que você precisa (ex: releaseYear diretamente no catálogo meta).
                 return {

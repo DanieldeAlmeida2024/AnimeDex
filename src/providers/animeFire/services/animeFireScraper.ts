@@ -1,40 +1,38 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { ScrapedAnimeAnimeFire, ScrapedEpisodeAnimeFire, ScrapedEpisodeTorrent, ScrapedStream } from '../../../utils/types/types';
-import puppeteer from 'puppeteer';  
+import { ScrapedAnimeAnimeFire, ScrapedEpisodeAnimeFire, ScrapedStream } from '../../../utils/types/types';
 import {PROVIDER_URL,SEARCH_URL,SERIES_BR_URL,SERIES_SUBTITLED_URL,SERIES_TOP_URL,SERIES_UPGRADED_URL,RECENT_SERIES_URL,MOVIES_SUBTITLED_URL,MOVIES_BR_URL} from '../constants/url';
-// import { encode } from 'punycode'; // Não é necessário para este contexto e pode ser removido
 
 const BASE_URL = PROVIDER_URL;
 
 export async function scrapeRecentAnimes(type: 'movie' | 'series', page: number = 1): Promise<ScrapedAnimeAnimeFire[]> {
     const url = `${BASE_URL}${RECENT_SERIES_URL}/${page}`;
-    return await getAnimes(url, type, page);
+    return await getAnimesInfo(url, type, page);
 }
 
 export async function scrapeTopAnimes(type: 'movie' | 'series', page: number = 1): Promise<ScrapedAnimeAnimeFire[]> {
     const url = `${BASE_URL}${SERIES_TOP_URL}/${page}`;
-    return await getAnimes(url, type,page);
+    return await getAnimesInfo(url, type,page);
 }
 
 export async function scrapeAtualizadosAnimes(type: 'movie' | 'series', page: number = 1): Promise<ScrapedAnimeAnimeFire[]> {
     const url = `${BASE_URL}${SERIES_UPGRADED_URL}/${page}`;
-    return await getAnimes(url, type,page);
+    return await getAnimesInfo(url, type,page);
 }
 
 export async function scrapeDubladosAnimes(type: 'movie' | 'series', page: number = 1): Promise<ScrapedAnimeAnimeFire[]> {
     const url = `${BASE_URL}${type === 'series' ? SERIES_BR_URL : MOVIES_BR_URL}/${page}`;
-    return await getAnimes(url,type, page);
+    return await getAnimesInfo(url,type, page);
 }
 
 export async function scrapeLegendadosAnimes(type: 'movie' | 'series', page: number = 1): Promise<ScrapedAnimeAnimeFire[]> {
     const url = `${BASE_URL}/${type === 'series' ? SERIES_SUBTITLED_URL : MOVIES_SUBTITLED_URL}/${page}`;
-    return await getAnimes(url, type, page);
+    return await getAnimesInfo(url, type, page);
 }
 
 export async function searchAnimes(query: string, page: number = 1): Promise<ScrapedAnimeAnimeFire[]> {
     let animes: ScrapedAnimeAnimeFire[] = [];
-    return await getSearchAnimes(animes,query, page);
+    return await getSearchAnimesInfo(animes,query, page);
 }
 
 export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<ScrapedAnimeAnimeFire> | null> {
@@ -244,7 +242,7 @@ async function getAnimeInfo(urlAnimeFire: string): Promise<{animeName: string, s
     }
 }
 
-async function getAnimes(url: string,type: 'movie' | 'series', page: number = 1){
+async function getAnimesInfo(url: string,type: 'movie' | 'series', page: number = 1){
     try {
         const { data } = await axios.get(url, {
             headers: {
@@ -287,7 +285,7 @@ async function getAnimes(url: string,type: 'movie' | 'series', page: number = 1)
     }
 }
 
-async function getSearchAnimes(animes: ScrapedAnimeAnimeFire[],query: string ,page: number=1){
+async function getSearchAnimesInfo(animes: ScrapedAnimeAnimeFire[],query: string ,page: number=1){
 
     const encodedQuery = query.replace(" ", "-");
     const url = `${BASE_URL}${SEARCH_URL}/${encodedQuery}`;

@@ -1,17 +1,8 @@
 import axios from 'axios';
 import { EpisodeInfo } from './types/types'; 
-const REALDEBRID_API_BASE = 'https://api.real-debrid.com/rest/1.0';
-
-let realDebridAuthToken: string | null = null; 
 import { parseEpisodeInfo } from './parseUtils';
-
-export function setRealDebridAuthToken(token: string) {
-    if (!token || token.trim() === '') {
-        realDebridAuthToken = null;
-        return;
-    }
-    realDebridAuthToken = token.trim();
-}
+const REALDEBRID_API_BASE = 'https://api.real-debrid.com/rest/1.0';
+const realDebridAuthToken = process.env.REAL_DEBRID_API_TOKEN;
 
 async function makeRdRequest(endpoint: string, method: 'get' | 'post' | 'put' | 'delete' = 'get', data?: any): Promise<any> {
     if (!realDebridAuthToken) {

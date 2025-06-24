@@ -6,7 +6,7 @@ import {  getTmdbInfoByImdbId, getTmdbInfoByName } from '../../utils/tmdbApi';
 import {  findUnique, saveAnimeToDb, saveEpisodesToDb, updateAnimeToDb } from '../../persistence/db';
 import { getAnimeFromAniList } from '../../utils/aniListApi';
 import { PrismaClient } from '@prisma/client';
-import { scrapeImdbInfoForGoogle } from '../../services/scraper';
+import { scrapeImdbInfoForGoogle } from '../../services/scraperStream';
 const prisma = new PrismaClient();
 const BASE_URL = PROVIDER_URL;
 
@@ -14,7 +14,6 @@ export async function animeFireHeadler(
     { type, id, extra }:
     { type: string; id: string; extra: { search?: string; skip?: string } }
 ): Promise<{ metas: Meta[] }> {
-    console.log(`[CatalogHandler] Request received: Type=${type}, ID=${id}, Extra=${JSON.stringify(extra)}`);
 
     const { search, skip } = extra;
     const page = skip ? Math.floor(parseInt(skip) / 20) + 1 : 1;
@@ -22,10 +21,8 @@ export async function animeFireHeadler(
 
     // --- Lógica de Scraping/Busca de Animes ---
     if (search?.search) {
-        console.log(`[CatalogHandler] Performing search for: "${search}" on page ${page}`);
         scrapedAnimes = await searchAnimes(search, page); 
     } else {
-        console.log(`[CatalogHandler] Fetching catalog: ${id} (Page: ${page})`);
         switch (id) {
             case 'animedex_series_catalog':
                 scrapedAnimes = await scrapeTopAnimes(type as 'series', page);
@@ -61,22 +58,17 @@ export async function animeFireHeadler(
     }
 
     if (scrapedAnimes.length === 0) {
-        console.log(`[CatalogHandler] No animes scraped for ID: ${id} or search: ${search?.search}.`);
         return { metas: [] };
     }
-    console.log(`[CatalogHandler] Scraped ${scrapedAnimes.length} animes.`);
-
 
     const metas: Meta[] = [];
     for (const scrapedAnime of scrapedAnimes) {
         try {
             const encodedAnimefireUrl = encodeURIComponent(scrapedAnime.animefireUrl);
-            console.log(`[CatalogHandler] Processing Anime: "${scrapedAnime.title}" (URL: ${encodedAnimefireUrl})`);
 
             let animeRecord = await findUnique(scrapedAnime.animefireUrl); 
 
             if (!animeRecord) { 
-                console.log(`[CatalogHandler] Anime "${scrapedAnime.title}" not found in DB. Fetching external info."${scrapedAnime.secoundName}"`);
                 const aniListMedia = await getAnimeFromAniList(
                     scrapedAnime.title || scrapedAnime.secoundName || '',
                     scrapedAnime.title || '',
@@ -89,16 +81,12 @@ export async function animeFireHeadler(
                     const match = imdbLink.url.match(/title\/(tt\d+)/);
                     if (match && match[1]) {
                         imdbId = match[1];
-                        console.log(`[CatalogHandler] Found IMDb ID from AniList: ${imdbId}`);
                     }
                 }
 
                 let tmdbInfo: any | null = null;
                 if (imdbId) {
                     tmdbInfo = await getTmdbInfoByImdbId(imdbId);
-                    if (tmdbInfo) {
-                        console.log(`[CatalogHandler] Found TMDB info via IMDb ID.`);
-                    }
                 }
 
                 if (!tmdbInfo) {
@@ -115,18 +103,12 @@ export async function animeFireHeadler(
                             searchTitle,
                             scrapedAnime.type
                         );
-                        if (tmdbInfo) {
-                            console.log(`[CatalogHandler] Found TMDB info via name search.`);
-                        }
                     } else if(aniListMedia && scrapedAnime.secoundName){
                         tmdbInfo = await getTmdbInfoByName(
                             aniListMedia, // Pass aniListMedia for better matching
                             scrapedAnime.secoundName,
                             scrapedAnime.type
                         );
-                        if (tmdbInfo) {
-                            console.log(`[CatalogHandler] Found TMDB info via name search.`);
-                        }
                     }
                 }
 
@@ -143,7 +125,6 @@ export async function animeFireHeadler(
                     }
                     if (savedAnime) {
                         animeRecord = savedAnime;
-                        console.log(`[CatalogHandler] New anime record saved for "${scrapedAnime.title}".`);
                     } else {
                         console.warn(`[CatalogHandler] Failed to save anime record for "${scrapedAnime.title}". Skipping.`);
                         continue
@@ -151,10 +132,8 @@ export async function animeFireHeadler(
                 } else {
                     const consultaImdbOnGoogle = await scrapeImdbInfoForGoogle(scrapedAnime.title);
                     if(consultaImdbOnGoogle){
-                        console.log(`[CatalogHandler] Found IMDb ID via Google search: ${consultaImdbOnGoogle}`);
                         tmdbInfo = await getTmdbInfoByImdbId(consultaImdbOnGoogle);
                         if (tmdbInfo) {
-                            console.log(`[CatalogHandler] Found TMDB info via Google search.`);
                             let savedAnime = await saveAnimeToDb(tmdbInfo, scrapedAnime);
                             if (savedAnime){
                             }else if(!savedAnime){
@@ -168,7 +147,7 @@ export async function animeFireHeadler(
                         }
                         continue;
                     }else{  
-                        console.warn(`[CatalogHandler] No valid TMDB info for "${scrapedAnime.title}". Skipping DB save for this item.`);
+                        console.warn(`[CatalogHandler] No valid TMDB info for "${scrapedAnime.title}". Saving without imdbId (FAKE).`);
                         const tmdbInfofake: TmdbInfoResult = {
                             id: aniListMedia?.id || 1,
                             title: scrapedAnime.secoundName || scrapedAnime.title ,
@@ -186,7 +165,6 @@ export async function animeFireHeadler(
                         }
                         if (savedAnime) {
                             animeRecord = savedAnime;
-                            console.log(`[CatalogHandler] New anime record saved for "${scrapedAnime.title}".`);
                         } else {
                             console.warn(`[CatalogHandler] Failed to save anime record for "${scrapedAnime.title}". Skipping.`);
                             continue
@@ -195,7 +173,6 @@ export async function animeFireHeadler(
 
                 }
             } else {
-                console.log(`[CatalogHandler] Anime "${scrapedAnime.title}" found in DB.`);
                 console.log(`Dados: \n
                     id: animedex_${type}_${encodeURIComponent(animeRecord.stremioId)}\n
                     type: ${animeRecord.type} \n
@@ -225,7 +202,6 @@ export async function animeFireHeadler(
 }
 
 export async function animeFireMetaHeadler(encodedUrl: string, type: string): Promise<{ meta: Meta }>{
-    console.log(`Entrou no meta headler`)
         const id = decodeURIComponent(
         encodedUrl.replace(`animedex_${type}_`, '')
     );
@@ -288,14 +264,12 @@ export async function animeFireMetaHeadler(encodedUrl: string, type: string): Pr
         return Promise.reject(new Error('Anime record is null, cannot build meta.'));
     }
 
-    console.log(`[MetaHandler Interno] ✅ Meta construída com sucesso.`);
     return Promise.resolve({ meta });
 }
 
 export async function animeFireStreamHeadler(
     { id, type, season, episode }: { id: string; type: string, season?: number, episode?: number }
 ): Promise<{ stream: ScrapedStream[] }> {
-    console.log(`[StreamHandler] Request for ID: ${id}, Type: ${type}, Season: ${season}, Episode: ${episode}`);
     let animefireContentUrl: string;
     const animefireBaseUrl = decodeURIComponent(id.split(':')[0]);
 
@@ -320,16 +294,13 @@ export async function animeFireStreamHeadler(
 
             if (targetEpisode?.episodeUrl) {
                 animefireContentUrl = targetEpisode.episodeUrl;
-                console.log(`[StreamHandler] Found episode ${episode} URL in DB: ${animefireContentUrl}`);
             } else {
                 console.warn(`[StreamHandler] Episode ${episode} URL not found in DB for ${animefireBaseUrl}. Attempting fallback construction.`);
                 animefireContentUrl = `${animefireBaseUrl}/episodio/${episode}`;
-                console.log(`[StreamHandler] Constructed fallback URL for series: ${animefireContentUrl}`);
             }
         } else {
             console.warn(`[StreamHandler] No episode data in DB for ${animefireBaseUrl}. Attempting fallback construction.`);
             animefireContentUrl = `${animefireBaseUrl}/episodio/${episode}`;
-            console.log(`[StreamHandler] Constructed fallback URL for series (no DB data): ${animefireContentUrl}`);
         }
     } else {
         console.error(`[StreamHandler] Unsupported content type: ${type}`);
@@ -341,7 +312,6 @@ export async function animeFireStreamHeadler(
         return Promise.reject(new Error('Content URL could not be determined.'));
     }
 
-    console.log(`[StreamHandler] Scraping streams from: ${animefireContentUrl}`);
     try {
         let streams = await scrapeStreamsFromContentPage(animefireContentUrl);
         
@@ -365,7 +335,6 @@ export async function scrapeAnimeFireDirectStreams(
     episode?: number,
     type?: 'movie' | 'series' 
 ): Promise<ScrapedStream[]> { 
-    console.log(`[AnimeFireDirectScraper] Iniciando scraping para URL Base: ${animefireBaseUrl}, Tipo: ${type}, S:${season}, E:${episode}`);
 
     if (!animefireBaseUrl || !animefireBaseUrl.startsWith(BASE_URL)) {
         console.error(`[AnimeFireDirectScraper] URL base inválida: ${animefireBaseUrl}`);
@@ -383,7 +352,6 @@ export async function scrapeAnimeFireDirectStreams(
         return [];
     }
 
-    console.log(`[AnimeFireDirectScraper] Raspando streams de: ${animefireBaseUrl}`);
     try {
         let novoUrl = `${animefireBaseUrl}/${episode}`;
 
@@ -463,7 +431,6 @@ export async function scrapeAnimeFireDirectStreams(
                 
                 // Opcional: Ordene os episódios por número para manter a lista consistente
                 existingEpisodes.sort((a, b) => a.episode - b.episode);
-                console.log(`[DB UPDATE] Novo episódio ${episodeDataSave.episode} adicionado para ${animefireBaseUrl}.`);
 
                 // 3. Serializar o array atualizado de volta para uma string JSON
                 const updatedEpisodesJsonString = existingEpisodes;
@@ -471,7 +438,6 @@ export async function scrapeAnimeFireDirectStreams(
                 // 4. Salvar a string JSON atualizada no banco de dados
                 await saveEpisodesToDb(updatedEpisodesJsonString);
 
-                console.log(`[DB UPDATE] Dados de episódios atualizados com sucesso para ${animefireBaseUrl}. Total de episódios: ${existingEpisodes.length}`);
                 // =========================================================
                 
 
