@@ -116,6 +116,18 @@ export async function scrapeAnimeDetails(animefireUrl: string): Promise<Partial<
 export async function scrapeStreamsFromContentPage(contentUrl: string): Promise<ScrapedStream[]> {
 
     const streams: ScrapedStream[] = [];
+    if (!contentUrl || !contentUrl.startsWith(BASE_URL)) {
+        if(!contentUrl.startsWith(BASE_URL)){
+            contentUrl = decodeURIComponent(contentUrl);
+            if(!contentUrl.startsWith(BASE_URL)){
+                console.error(`[AnimeFireDirectScraper] URL base inválida: ${contentUrl}`);
+                return streams;
+            }
+        }else{
+            console.error(`[AnimeFireDirectScraper] URL base inválida: ${contentUrl}`);
+            return streams;
+        }
+    }
     try {
         // 1. Fazer a requisição para a contentUrl para obter a URL da página de download
         const { data: initialPageData } = await axios.get(contentUrl.replace("-todos-os-episodios", ''), {

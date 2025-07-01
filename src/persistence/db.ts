@@ -29,6 +29,7 @@ async function findFirstDataBase(tmdbInfo?: TmdbInfoResult , scrapedAnime?: Scra
 }
 
 export async function saveEpisodesToDb(episodes: ScrapedEpisodeAnimeFire[]){
+    console.log(`DB: Salvando ${episodes.length} episódios para o anime com URL: ${episodes[0].id}`);
     await prisma.anime.update({
         where: { animefireUrl: episodes[0].id },
         data: { episodesData: JSON.stringify(episodes) }
@@ -36,23 +37,23 @@ export async function saveEpisodesToDb(episodes: ScrapedEpisodeAnimeFire[]){
 }
 
 export async function updateAnimeToDb(
-    tmdbInfo: TmdbInfoResult,
-    scrapedAnime: ScrapedAnimeAnimeFire) {
+    tmdbInfo?: TmdbInfoResult,
+    scrapedAnime?: ScrapedAnimeAnimeFire) {
     try {
             await prisma.anime.updateMany({
                 where: { 
-                    stremioId: (tmdbInfo?.imdbId && tmdbInfo.imdbId != "FAKE") ? tmdbInfo.imdbId : encodeURIComponent(scrapedAnime.animefireUrl), 
+                    stremioId: (tmdbInfo?.imdbId && tmdbInfo.imdbId != "FAKE") ? tmdbInfo.imdbId : encodeURIComponent(scrapedAnime?.animefireUrl? scrapedAnime.animefireUrl : ''), 
                 },
                 data: {
-                    title: scrapedAnime.title,
-                    poster: tmdbInfo?.poster || scrapedAnime.poster,
-                    type: scrapedAnime.type,
+                    title: scrapedAnime?.title,
+                    poster: tmdbInfo?.poster || scrapedAnime?.poster,
+                    type: scrapedAnime?.type,
                     updatedAt: new Date(),
-                    secoundName: scrapedAnime.secoundName,
+                    secoundName: scrapedAnime?.secoundName,
                     description: tmdbInfo?.description,
                     background: tmdbInfo?.background,
-                    genres: scrapedAnime.genres ? JSON.stringify(scrapedAnime.genres) : null,
-                    releaseYear: tmdbInfo?.releaseYear || scrapedAnime.releaseYear
+                    genres: scrapedAnime?.genres ? JSON.stringify(scrapedAnime.genres) : null,
+                    releaseYear: tmdbInfo?.releaseYear || scrapedAnime?.releaseYear
                 }
             });
             return await findFirstDataBase(undefined,scrapedAnime);

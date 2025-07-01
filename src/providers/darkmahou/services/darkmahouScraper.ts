@@ -20,7 +20,7 @@ export async function getDarkMahouAnimePageUrl(
     let serieUrl: string = '';
     const encodedTitle = encodeURIComponent(animeTitle);
     const searchUrl = `${DARKMAHOU_BASE_URL}/?s=${encodedTitle}`;
-
+    console.log(`Searching DarkMahou for: ${animeTitle} at ${searchUrl}`);
     try {
         const { data } = await axios.get(searchUrl, {
             headers: {
@@ -33,9 +33,8 @@ export async function getDarkMahouAnimePageUrl(
         const pageUrl = article.find('div > a').attr('href');
         console.log(`Anime Encontrado DarkMahou:`);
 
-        serieUrl = pageUrl ?? '';
+        serieUrl = pageUrl || '';
     } catch (error: any) {
-        // Error handling remains, but logs are removed as requested.
     }
     return serieUrl;
 }

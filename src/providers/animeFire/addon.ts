@@ -93,10 +93,6 @@ export async function animeFireHeadler(
                     // Fallback to searching TMDB by name if IMDb lookup failed
 
                     const searchTitle = aniListMedia?.title.english || scrapedAnime.secoundName || scrapedAnime.title;
-                    console.log(`[CatalogHandler] Attempting to find TMDB info by name. \n
-                        aniListTitle${aniListMedia?.title.english}\n
-                        ScrapedAnimeTitle ${scrapedAnime.title}\n
-                        scrapedAnimeTitle ${scrapedAnime.secoundName}`);
                     if (searchTitle && aniListMedia) {
                          tmdbInfo = await getTmdbInfoByName(
                             aniListMedia, // Pass aniListMedia for better matching
@@ -173,15 +169,6 @@ export async function animeFireHeadler(
 
                 }
             } else {
-                console.log(`Dados: \n
-                    id: animedex_${type}_${encodeURIComponent(animeRecord.stremioId)}\n
-                    type: ${animeRecord.type} \n
-                    name: ${animeRecord.secoundName || animeRecord.title} \n
-                    poster: ${animeRecord.poster || animeRecord.background || undefined}\n
-                    description: ${animeRecord.description || ''}\n
-                    genres: ${animeRecord.genres ? JSON.parse(animeRecord.genres) : undefined}\n
-                    releaseInfo: ${animeRecord.releaseYear?.toString()}\n
-                    background: ${animeRecord.background || animeRecord.poster || undefined}`)
                 metas.push({
                     id: `animedex_${type}_${encodeURIComponent(animeRecord.stremioId)}`, 
                     type: animeRecord.type,
@@ -336,9 +323,17 @@ export async function scrapeAnimeFireDirectStreams(
     type?: 'movie' | 'series' 
 ): Promise<ScrapedStream[]> { 
 
-    if (!animefireBaseUrl || !animefireBaseUrl.startsWith(BASE_URL)) {
-        console.error(`[AnimeFireDirectScraper] URL base inválida: ${animefireBaseUrl}`);
-        return [];
+    if (!animefireBaseUrl) {
+        if(!animefireBaseUrl.startsWith(BASE_URL)){
+            animefireBaseUrl = decodeURIComponent(animefireBaseUrl);
+            if(!animefireBaseUrl.startsWith(BASE_URL)){
+                console.error(`[AnimeFireDirectScraper] URL base inválida: ${animefireBaseUrl}`);
+                return [];
+            }
+        }else{
+            console.error(`[AnimeFireDirectScraper] URL base inválida: ${animefireBaseUrl}`);
+            return [];
+        }
     }
 
     if (type === 'movie') {

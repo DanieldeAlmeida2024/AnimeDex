@@ -38,7 +38,7 @@ builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; 
     let streams: Stream[] = []; 
 
     try {
-        if (isImdbIdOnly || isStremioImdbEpisodeId) {
+        if (isImdbIdOnly && isStremioImdbEpisodeId) {
             return await scraperTorrentsStreams(streams, id, type, season, episode);
         } else {
             return await scraperAnimeFireStreams(streams, id, type, season, episode);

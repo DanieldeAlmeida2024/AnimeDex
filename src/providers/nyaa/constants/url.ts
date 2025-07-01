@@ -1,1 +1,1 @@
-export const TORRENT_ANIME_URL = 'https://nyaa.land';
+export const TORRENT_ANIME_URL = 'https://nyaa.si';

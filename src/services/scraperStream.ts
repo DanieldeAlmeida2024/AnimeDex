@@ -113,7 +113,7 @@ export async function scraperTorrentsStreams(streams: Stream[], id: string, type
 
 export async function scrapeMagnetLinks(options: ScrapeOptions): Promise<ScrapedStream[]> {
     const { name, season, episode } = options;
-    const streams: ScrapedStream[] = [];
+    let streams: ScrapedStream[] = [];
 
     if (name) {
         try {

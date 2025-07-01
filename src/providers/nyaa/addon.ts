@@ -1,5 +1,4 @@
-import { ScrapedTorrentStream, Stream } from '../../utils/types/types';
-import { TORRENT_ANIME_URL } from './constants/url';
+import { ScrapedTorrentStream} from '../../utils/types/types';
 import { searchAnimeTorrentsNyaa } from './services/nyaaScraper';
 
 

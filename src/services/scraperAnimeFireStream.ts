@@ -13,7 +13,7 @@ function convertStringInfoData(id: string): { animeFireUrl: string, season?: num
     } else if (parts.length === 2) {
         return { animeFireUrl: parts[0], season: parseInt(parts[1]) };
     } else if (parts.length === 3) {
-        return { animeFireUrl: parts[0], season: parseInt(parts[1]), episode: parseInt(parts[2]) };
+        return { animeFireUrl: decodeURIComponent(parts[0]) , season: parseInt(parts[1]), episode: parseInt(parts[2]) };
     }
     throw new Error(`ID format not recognized: ${id}`);
 }
@@ -63,7 +63,7 @@ export async function scraperAnimeFireStreams(streams: Stream[] ,id: string, typ
                         name: 'AnimeFire',
                         title: animeRecordFromDb.title || `S${currentSeason}E${currentEpisode} (AnimeFire)`,
                         url: animefireContentUrl,
-                        behaviorHints: {"bingeGroup":encodeURIComponent(animeFireUrl)}
+                        behaviorHints: {"bingeGroup":animeFireUrl}
                     });
                 } else {
                     console.warn(`[ScraperAnimeFireStream] Episódio encontrado ${foundEpisode.episode} não possui 'episodeUrl'.`);
