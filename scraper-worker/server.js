@@ -66,7 +66,8 @@ async function render(rawUrl) {
     } finally {
       if (timer) clearTimeout(timer);
     }
-    await page.waitForNetworkIdle({ idleTime: 500, timeout: Math.min(timeoutMs, 8000) }).catch(() => {});
+    if (navigationError) throw navigationError;
+    await new Promise(resolve => setTimeout(resolve, 2000));
     const html = await page.content();
     // Cheerio permanece aqui para normalizar o DOM renderizado antes de devolver o HTML.
     const $ = cheerio.load(html);
