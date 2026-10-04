@@ -171,10 +171,9 @@ async function fetchHomeCatalogs() {
       await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexHomeWorker/1.0');
       page.on('response', async response => {
         if (!response.url().includes('api.animefire.one')) return;
-        if (!(response.headers()['content-type'] || '').includes('json')) return;
         try {
           const payload = await response.json();
-          if (Array.isArray(payload?.data) || Array.isArray(payload?.data?.animes)) apiResponses.push({ url: response.url(), payload });
+          if (extractApiItems(payload).length) apiResponses.push({ url: response.url(), payload });
         } catch (_) {}
       });
       await page.goto('https://animefire.one/', { waitUntil: 'domcontentloaded', timeout: timeoutMs });
@@ -182,15 +181,52 @@ async function fetchHomeCatalogs() {
       const dom = await page.evaluate(() => [...document.querySelectorAll('app-carousel')].map((carousel, index) => ({
         index,
         name: carousel.querySelector('app-carousel-header h2 span, h2 span')?.textContent?.trim() || `AnimeFire ${index + 1}`,
-        items: [...carousel.querySelectorAll('app-anime-card')].map(card => ({ name: card.querySelector('h3')?.textContent?.trim() || '', poster: card.querySelector('img')?.getAttribute('src') || '' })).filter(item => item.name),
+        items: [...carousel.querySelectorAll('app-anime-card, a[href*="/anime/"], [routerlink*="/anime/"]')].map(card => {
+          const link = card.matches('a') ? card : card.querySelector('a[href*="/anime/"], [routerlink*="/anime/"]');
+          const href = link?.getAttribute('href') || link?.getAttribute('routerlink') || '';
+          const id = href.match(/\/anime\/([^/?#]+)/i)?.[1] || card.getAttribute('data-id') || '';
+          return { id, name: card.querySelector('h3, h2, .title')?.textContent?.trim() || card.querySelector('img')?.getAttribute('alt')?.trim() || '', poster: card.querySelector('img')?.getAttribute('src') || '' };
+        }).filter(item => item.id || item.name),
       })));
-      return dom.map((section, index) => {
-        const response = apiResponses[index]?.payload;
-        const data = Array.isArray(response?.data) ? response.data : response?.data?.animes;
-        return { id: `home_${index}`, name: section.name, type: 'series', items: Array.isArray(data) ? data : section.items, sourceUrl: apiResponses[index]?.url || '' };
-      }).filter(section => section.items.length || section.name);
+      const sections = [];
+      const seen = new Set();
+      const addSection = (name, items, sourceUrl = '') => {
+        const valid = Array.isArray(items) ? items.filter(item => item?.id || item?.name || item?.titles) : [];
+        if (!valid.length) return;
+        const signature = valid.map(item => item.id || item.name || item.titles?.BR || '').join('|');
+        if (seen.has(signature)) return;
+        seen.add(signature);
+        sections.push({ id: `home_${sections.length}`, name: name || `AnimeFire ${sections.length + 1}`, type: 'series', items: valid, sourceUrl });
+      };
+      // Quando os componentes Angular estão disponíveis, preserva seus títulos.
+      dom.forEach((section, index) => addSection(section.name, extractApiItems(apiResponses[index]?.payload).length ? extractApiItems(apiResponses[index].payload) : section.items, apiResponses[index]?.url || ''));
+      // Também inclui respostas que não aparecem no DOM por causa de lazy-load,
+      // viewport ou mudança nos componentes da página.
+      apiResponses.forEach(({ url, payload }) => addSection(labelFromApiUrl(url, sections.length), extractApiItems(payload), url));
+      if (!sections.length) throw new Error('Nenhum carrossel foi retornado pela página inicial');
+      return sections;
     } finally { await page.close().catch(() => {}); }
   });
+}
+
+function extractApiItems(payload) {
+  const data = payload?.data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.animes)) return data.animes;
+  if (Array.isArray(data?.items)) return data.items;
+  if (data && typeof data === 'object') {
+    for (const value of Object.values(data)) if (Array.isArray(value) && value.some(item => item?.id || item?.titles)) return value;
+  }
+  return [];
+}
+
+function labelFromApiUrl(rawUrl, index) {
+  const value = rawUrl.toLowerCase();
+  if (value.includes('em-breve') || value.includes('lancamentos')) return value.includes('em-breve') ? 'Em breve' : 'Melhores em lançamento';
+  if (value.includes('novidade')) return 'Novidades';
+  if (value.includes('top') || value.includes('curtid')) return 'Mais curtidos';
+  if (value.includes('atual') || value.includes('recent') || value.includes('episod')) return 'Novos episódios';
+  return `AnimeFire ${index + 1}`;
 }
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker', cacheTtlMs, cacheEntries: cache.size }));
