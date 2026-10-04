@@ -1,0 +1,11 @@
+{
+  "name": "animedex-scraper-worker",
+  "private": true,
+  "type": "commonjs",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "express": "^5.1.0",
+    "puppeteer": "^24.9.0"
+  }
+}

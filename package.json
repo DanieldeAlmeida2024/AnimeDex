@@ -7,12 +7,16 @@
     "dev": "ts-node-dev src/main.ts",
     "build": "tsc",
     "migrate:dev": "npx prisma migrate dev",
-    "prisma:generate": "npx prisma generate"
+    "prisma:generate": "npx prisma generate",
+    "supabase:serve": "supabase functions serve animedex --no-verify-jwt",
+    "supabase:db:push": "supabase db push",
+    "supabase:deploy": "supabase functions deploy animedex --no-verify-jwt",
+    "scraper:worker": "npm --prefix scraper-worker start"
   },
   "keywords": [],
   "author": "Daniel de Almeida",
   "license": "ISC",
-  "description": "Addon Stremio",
+  "description": "Addon Stremio com implementação leve para Supabase Edge Functions",
   "devDependencies": {
     "@types/dotenv": "^8.2.3",
     "@types/node": "^22.15.24",
@@ -48,4 +52,3 @@
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }
-

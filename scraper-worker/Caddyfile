@@ -1,0 +1,3 @@
+{$SCRAPER_DOMAIN} {
+  reverse_proxy animedex-scraper:8787
+}

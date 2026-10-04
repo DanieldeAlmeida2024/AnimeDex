@@ -1,0 +1,4 @@
+project_id = "animedex"
+
+[functions.animedex]
+verify_jwt = false
