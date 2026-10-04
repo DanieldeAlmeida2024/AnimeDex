@@ -191,6 +191,7 @@ async function fetchHomeCatalogs() {
       const sections = [];
       const seen = new Set();
       const addSection = (name, items, sourceUrl = '') => {
+        if ((name || '').trim().toLowerCase() === 'continue assistindo') return;
         const valid = Array.isArray(items) ? items.filter(item => item?.id || item?.name || item?.titles) : [];
         if (!valid.length) return;
         const signature = valid.map(item => item.id || item.name || item.titles?.BR || '').join('|');
