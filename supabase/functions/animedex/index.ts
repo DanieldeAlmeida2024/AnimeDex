@@ -96,7 +96,15 @@ async function stream(type: MediaType, rawId: string) {
       title: item.audio || 'AnimeFire',
       quality: item.qualities?.join(', ') || undefined,
       url: item.url,
-      behaviorHints: { bingeGroup: 'animedex-animefire' },
+      behaviorHints: {
+        bingeGroup: 'animedex-animefire',
+        proxyHeaders: {
+          request: {
+            Referer: 'https://animefire.one/',
+            Origin: 'https://animefire.one',
+          },
+        },
+      },
     })),
   };
 }
