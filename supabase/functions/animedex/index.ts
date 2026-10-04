@@ -122,7 +122,9 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers });
   try {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/^\/functions\/v1\/animedex\/?/, '').replace(/^\//, '');
+    const segments = url.pathname.split('/').filter(Boolean);
+    const addonIndex = segments.indexOf('animedex');
+    const path = (addonIndex >= 0 ? segments.slice(addonIndex + 1) : segments.slice(-3)).join('/');
     if (path === 'manifest.json') return json(manifest());
     const parts = path.split('/');
     if (parts.length === 3 && parts[2].endsWith('.json')) {
