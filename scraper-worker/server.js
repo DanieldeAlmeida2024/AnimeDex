@@ -82,7 +82,10 @@ app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scrape
 app.get('/render', async (req, res) => {
   try {
     if (typeof req.query.url !== 'string') return res.status(400).json({ error: 'url obrigatória' });
-    const html = await render(req.query.url);
+    const html = await Promise.race([
+      render(req.query.url),
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`render HTTP timeout after ${timeoutMs + 5000} ms`)), timeoutMs + 5000)),
+    ]);
     res.json({ html });
   } catch (error) {
     console.error('[render]', error.message);
