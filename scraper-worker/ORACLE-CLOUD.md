@@ -46,7 +46,7 @@ cp .env.example .env
 nano .env
 
 docker compose up -d --build
-curl http://IP_PUBLICO_DA_VM:8787/health
+curl http://163.176.133.210:8787/health
 ```
 
 A resposta esperada é:
@@ -77,14 +77,14 @@ A porta 8787 também precisa estar liberada na Security List ou Network Security
 Depois de confirmar o endpoint, configure a variável da Edge Function:
 
 ```bash
-supabase secrets set BROWSER_SCRAPER_URL=http://IP_PUBLICO_DA_VM:8787
+supabase secrets set BROWSER_SCRAPER_URL=http://163.176.133.210:8787
 ```
 
 Ou use o painel Supabase em **Edge Functions → Secrets**:
 
 ```text
 Nome: BROWSER_SCRAPER_URL
-Valor: http://IP_PUBLICO_DA_VM:8787
+Valor: http://163.176.133.210:8787
 ```
 
 ## 6. Testar
