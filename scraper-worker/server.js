@@ -51,12 +51,27 @@ async function render(rawUrl) {
       if (['image', 'font', 'media'].includes(resource)) request.abort();
       else request.continue();
     });
-    await page.goto(url.toString(), { waitUntil: 'commit', timeout: timeoutMs });
+    let navigationError;
+    let timer;
+    try {
+      await Promise.race([
+        page.goto(url.toString(), { waitUntil: 'commit', timeout: timeoutMs }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`navigation hard timeout after ${timeoutMs} ms`)), timeoutMs);
+        }),
+      ]);
+    } catch (error) {
+      navigationError = error;
+      console.warn('[navigation]', error.message);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
     await page.waitForNetworkIdle({ idleTime: 500, timeout: Math.min(timeoutMs, 8000) }).catch(() => {});
     const html = await page.content();
     // Cheerio permanece aqui para normalizar o DOM renderizado antes de devolver o HTML.
     const $ = cheerio.load(html);
     $('script, noscript').remove();
+    if (!html || html.length < 100) throw navigationError || new Error('HTML vazio após navegação');
     return $.html();
   } finally {
     await page.close().catch(() => {});
