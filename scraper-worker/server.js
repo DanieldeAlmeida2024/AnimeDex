@@ -80,10 +80,34 @@ async function render(rawUrl) {
   }
 }
 
+async function fetchRenderedHtml(rawUrl) {
+  const url = assertAllowed(rawUrl);
+  const response = await fetch(url, {
+    redirect: 'follow',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexWorker/1.0',
+      Accept: 'text/html,application/xhtml+xml',
+    },
+    signal: AbortSignal.timeout(Math.min(timeoutMs, 15000)),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status} em fetch direto`);
+  const html = await response.text();
+  if (html.length < 100 || /cf-chl-|challenge-platform|just a moment/i.test(html)) throw new Error('resposta exige navegador');
+  const $ = cheerio.load(html);
+  $('script, noscript').remove();
+  return $.html();
+}
+
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker' }));
 app.get('/render', async (req, res) => {
   try {
     if (typeof req.query.url !== 'string') return res.status(400).json({ error: 'url obrigatória' });
+    try {
+      const html = await fetchRenderedHtml(req.query.url);
+      return res.json({ html, method: 'fetch' });
+    } catch (error) {
+      console.warn('[direct-fetch] fallback para Puppeteer:', error.message);
+    }
     const html = await Promise.race([
       render(req.query.url),
       new Promise((_, reject) => setTimeout(() => reject(new Error(`render HTTP timeout after ${timeoutMs + 5000} ms`)), timeoutMs + 5000)),
