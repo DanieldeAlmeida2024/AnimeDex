@@ -41,7 +41,13 @@ function unwrapCatalog(payload: any): ApiAnime[] {
 
 async function catalog(type: MediaType, id: string, search?: string, skip = 0) {
   const definition = getCatalog(id);
-  if (!definition || definition.type !== type) throw new Error('Catálogo não disponível');
+  const isHomeCatalog = type === 'series' && /^home_\d+$/.test(id);
+  if ((!definition || definition.type !== type) && !isHomeCatalog) throw new Error('Catálogo não disponível');
+  if (isHomeCatalog) {
+    const payload = await proxy<any>(`/api/home/catalog/${encodeURIComponent(id)}`);
+    const homeItems = unwrapCatalog(payload);
+    return { metas: homeItems.slice(skip, skip + settings.maxCatalogItems).map((anime) => ({ id: addonId(anime.id), type: 'series', name: titleOf(anime), poster: anime.poster_src, background: anime.backdrop_src, description: anime.synopsis, releaseInfo: anime.published_at?.slice(0, 4), genres: anime.genres || [] })) };
+  }
   const query = search?.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
   const kind = type === 'movie' ? '&kind=movies' : '';
   const payload = await proxy<any>(`/api/catalog?page=${Math.floor(skip / settings.maxCatalogItems) + 1}${kind}${query}`);
@@ -116,7 +122,13 @@ async function stream(type: MediaType, rawId: string) {
   };
 }
 
-function manifest() {
+async function manifest() {
+  let dynamicCatalogs: Array<{ id: string; name: string; type: MediaType }> = [];
+  try {
+    const response = await fetch(`${PROXY}/api/home/catalogs`, { signal: AbortSignal.timeout(15000) });
+    if (response.ok) dynamicCatalogs = ((await response.json()) as { data?: Array<{ id: string; name: string; type: MediaType }> }).data || [];
+  } catch (error) { console.warn('[manifest] carrosséis dinâmicos indisponíveis:', error); }
+  const manifestCatalogs = [...catalogs, ...dynamicCatalogs.filter(dynamic => !catalogs.some(catalog => catalog.id === dynamic.id))];
   return {
     id: settings.addonId,
     version: settings.addonVersion,
@@ -124,7 +136,7 @@ function manifest() {
     description: 'Catálogo próprio AnimeDex com busca, episódios e streams AnimeFire',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series'],
-    catalogs: catalogs.map((item) => ({
+    catalogs: manifestCatalogs.map((item) => ({
       type: item.type,
       id: item.id,
       name: item.name,
@@ -140,7 +152,7 @@ Deno.serve(async (request) => {
     const segments = url.pathname.split('/').filter(Boolean);
     const addonIndex = segments.indexOf('animedex');
     const path = (addonIndex >= 0 ? segments.slice(addonIndex + 1) : segments.slice(-3)).join('/');
-    if (path === 'manifest.json') return json(manifest());
+    if (path === 'manifest.json') return json(await manifest());
     const parts = path.split('/');
     if (parts.length === 3 && parts[2].endsWith('.json')) {
       const id = parts[2].slice(0, -5);
