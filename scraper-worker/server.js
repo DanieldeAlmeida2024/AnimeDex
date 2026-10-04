@@ -7,6 +7,7 @@ const port = Number(process.env.PORT || 8787);
 const configuredHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
 const allowedHosts = new Set([configuredHost, 'animefire.plus', 'animefire.io', 'animefire.one']);
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS || 60000);
+const apiBase = 'https://api.animefire.one';
 let browserPromise;
 
 function getBrowser() {
@@ -98,7 +99,37 @@ async function fetchRenderedHtml(rawUrl) {
   return $.html();
 }
 
+async function fetchAnimeApi(path) {
+  const response = await fetch(`${apiBase}${path}`, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 AnimeDexWorker/1.0',
+      Accept: 'application/json',
+      Referer: 'https://animefire.one/',
+      Origin: 'https://animefire.one',
+    },
+    signal: AbortSignal.timeout(Math.min(timeoutMs, 20000)),
+  });
+  if (!response.ok) throw new Error(`AnimeFire API HTTP ${response.status}`);
+  return await response.json();
+}
+
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker' }));
+app.get('/api/catalog', async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const path = search ? `/animes/pesquisar?q=${encodeURIComponent(search)}&page=${page}` : `/animes?page=${page}`;
+    res.json(await fetchAnimeApi(path));
+  } catch (error) { res.status(502).json({ error: error.message }); }
+});
+app.get('/api/anime/:id', async (req, res) => {
+  try { res.json(await fetchAnimeApi(`/anime/${encodeURIComponent(req.params.id)}`)); }
+  catch (error) { res.status(502).json({ error: error.message }); }
+});
+app.get('/api/episode/:id', async (req, res) => {
+  try { res.json(await fetchAnimeApi(`/episode/${encodeURIComponent(req.params.id)}`)); }
+  catch (error) { res.status(502).json({ error: error.message }); }
+});
 app.get('/render', async (req, res) => {
   try {
     if (typeof req.query.url !== 'string') return res.status(400).json({ error: 'url obrigatória' });
