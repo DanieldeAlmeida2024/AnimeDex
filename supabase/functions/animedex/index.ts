@@ -3,7 +3,7 @@ import { catalogs, getCatalog, settings, type MediaType } from './config.ts';
 const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || 'http://163.176.133.210:8787').replace(/\/$/, '');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-const CACHE_TTL_MS = 30 * 60 * 1000;
+const VIDEO_CACHE_TTL_MS = 5 * 60 * 60 * 1000;
 const headers = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -137,7 +137,7 @@ async function stream(type: MediaType, rawId: string) {
   try {
     const cached = await db<Array<{ streams: Array<{ url: string; audio?: string; qualities?: string[] }>; updated_at: string }>>(`episodes?select=streams,updated_at&episode_url=eq.${encodeURIComponent(episodeUrl(id))}&limit=1`);
     const cachedAt = cached[0]?.updated_at ? Date.parse(cached[0].updated_at) : 0;
-    if (cached[0]?.streams?.length && Number.isFinite(cachedAt) && Date.now() - cachedAt < CACHE_TTL_MS) {
+    if (cached[0]?.streams?.length && Number.isFinite(cachedAt) && Date.now() - cachedAt < VIDEO_CACHE_TTL_MS) {
       return { streams: toStremioStreams(cached[0].streams) };
     }
   } catch (error) { console.warn('[cache stream read]', error); }
