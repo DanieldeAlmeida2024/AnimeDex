@@ -30,9 +30,37 @@ const movieId = (id: string) => `animedex_movie_${encodeURIComponent(id)}`;
 const episodeId = (id: string) => `animedex_episode_${encodeURIComponent(id)}`;
 
 async function proxy<T>(path: string): Promise<T> {
-  const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(25_000) });
-  if (!response.ok) throw new Error(`Worker AnimeFire HTTP ${response.status}`);
-  return await response.json() as T;
+  try {
+    const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(10_000) });
+    if (response.ok) return await response.json() as T;
+    throw new Error(`Worker AnimeFire HTTP ${response.status}`);
+  } catch (workerError) {
+    // Catálogo, busca, metadados e episódio também podem usar a API leve
+    // diretamente. O fallback não se aplica ao carrossel inicial, que exige
+    // DOM/Puppeteer e continua dependendo do scraper-worker.
+    let apiPath: string | null = null;
+    if (path.startsWith('/api/catalog')) {
+      const query = path.slice('/api/catalog'.length);
+      const params = new URLSearchParams(query);
+      const page = Math.max(1, Number(params.get('page') || 1));
+      const search = params.get('search');
+      const kind = params.get('kind');
+      apiPath = search
+        ? `/animes/pesquisar?q=${encodeURIComponent(search)}&page=${page}`
+        : kind === 'movies' ? `/animes/filmes?page=${page}` : `/animes?page=${page}`;
+    } else if (path.startsWith('/api/anime/')) {
+      apiPath = `/anime/${path.slice('/api/anime/'.length)}`;
+    } else if (path.startsWith('/api/episode/')) {
+      apiPath = `/episode/${path.slice('/api/episode/'.length)}`;
+    }
+    if (!apiPath) throw workerError;
+    const response = await fetch(`https://api.animefire.one${apiPath}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 AnimeDexEdge/1.0', Accept: 'application/json', Referer: 'https://animefire.one/', Origin: 'https://animefire.one' },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) throw new Error(`Worker indisponível (${workerError instanceof Error ? workerError.message : 'erro'}) e API AnimeFire HTTP ${response.status}`);
+    return await response.json() as T;
+  }
 }
 
 async function db<T>(path: string, init: RequestInit = {}): Promise<T> {
