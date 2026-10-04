@@ -13,14 +13,14 @@ Ele mantém as dependências do fluxo original:
 ```bash
 cd scraper-worker
 npm install
-ANIMEFIRE_BASE_URL=https://animefire.plus PORT=8787 npm start
+ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 npm start
 ```
 
 Endpoint:
 
 ```text
 GET /health
-GET /render?url=https%3A%2F%2Fanimefire.plus%2F...
+GET /render?url=https%3A%2F%2Fanimefire.one%2F...
 ```
 
 ## Ligação com a Edge Function

@@ -19,7 +19,7 @@ export const settings = {
   addonId: Deno.env.get('ADDON_ID') || 'org.stremio.animedex-supabase',
   addonName: Deno.env.get('ADDON_NAME') || 'AnimeDex Supabase',
   addonVersion: Deno.env.get('ADDON_VERSION') || '2.1.0',
-  baseUrl: (Deno.env.get('ANIMEFIRE_BASE_URL') || 'https://animefire.plus').replace(/\/$/, ''),
+  baseUrl: (Deno.env.get('ANIMEFIRE_BASE_URL') || 'https://animefire.one').replace(/\/$/, ''),
   maxCatalogItems: Math.min(Number(Deno.env.get('MAX_CATALOG_ITEMS') || 20), 50),
   maxStreams: Math.min(Number(Deno.env.get('MAX_STREAMS') || 5), 10),
   httpTimeoutMs: Number(Deno.env.get('HTTP_TIMEOUT_MS') || 12_000),

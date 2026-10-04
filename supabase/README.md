@@ -24,7 +24,7 @@ Configure no projeto Supabase:
 
 ```bash
 supabase secrets set \
-  ANIMEFIRE_BASE_URL=https://animefire.plus \
+  ANIMEFIRE_BASE_URL=https://animefire.one \
   MAX_CATALOG_ITEMS=20
 ```
 
@@ -37,7 +37,7 @@ O caminho original com Cheerio e Puppeteer **não foi removido**. Ele continua n
 ```bash
 cd scraper-worker
 npm install
-ANIMEFIRE_BASE_URL=https://animefire.plus PORT=8787 npm start
+ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 npm start
 ```
 
 Depois configure a URL acessível pela Edge Function:

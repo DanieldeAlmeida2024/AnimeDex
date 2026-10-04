@@ -55,7 +55,7 @@ Configure os secrets mínimos:
 
 ```bash
 supabase secrets set \
-  ANIMEFIRE_BASE_URL=https://animefire.plus \
+  ANIMEFIRE_BASE_URL=https://animefire.one \
   MAX_CATALOG_ITEMS=20 \
   MAX_STREAMS=5 \
   HTTP_TIMEOUT_MS=12000
@@ -78,7 +78,7 @@ Para manter o scraping com navegador nas páginas dinâmicas:
 ```bash
 cd scraper-worker
 npm install
-ANIMEFIRE_BASE_URL=https://animefire.plus PORT=8787 npm start
+ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 npm start
 ```
 
 Em outra sessão, configure a URL acessível pela Edge Function:

@@ -4,7 +4,7 @@ const cheerio = require('cheerio');
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
-const allowedHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.plus').hostname;
+const allowedHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS || 60000);
 let browserPromise;
 
