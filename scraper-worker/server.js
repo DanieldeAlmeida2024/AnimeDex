@@ -176,8 +176,14 @@ async function fetchHomeCatalogs() {
           if (extractApiItems(payload).length) apiResponses.push({ url: response.url(), payload });
         } catch (_) {}
       });
-      await page.goto('https://animefire.one/', { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-      await new Promise(resolve => setTimeout(resolve, 7000));
+      try {
+        // A home pode manter requisições pendentes por causa do Cloudflare.
+        // O shell Angular já é suficiente para continuar capturando as APIs.
+        await page.goto('https://animefire.one/', { waitUntil: 'commit', timeout: Math.min(timeoutMs, 15000) });
+      } catch (error) {
+        console.warn('[home-navigation] continuando após timeout parcial:', error.message);
+      }
+      await new Promise(resolve => setTimeout(resolve, 12000));
       const dom = await page.evaluate(() => [...document.querySelectorAll('app-carousel')].map((carousel, index) => ({
         index,
         name: carousel.querySelector('app-carousel-header h2 span, h2 span')?.textContent?.trim() || `AnimeFire ${index + 1}`,
