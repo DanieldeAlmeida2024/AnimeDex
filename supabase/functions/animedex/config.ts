@@ -9,6 +9,7 @@ export type CatalogDefinition = {
 };
 
 const configuredCatalogs: CatalogDefinition[] = [
+  { id: 'animedex_movie_catalog', name: 'AnimeDex — Filmes', type: 'movie', sourcePath: '/animes/filmes', searchPath: '/pesquisar' },
   { id: 'animedex_series_catalog', name: 'AnimeDex — Top', type: 'series', sourcePath: '/top-animes/1', searchPath: '/pesquisar' },
   { id: 'animedex_dublados_series_catalog', name: 'AnimeDex — Dublados', type: 'series', sourcePath: '/lista-de-animes-dublados/1', searchPath: '/pesquisar' },
   { id: 'animedex_atualizados_series_catalog', name: 'AnimeDex — Atualizados', type: 'series', sourcePath: '/animes-atualizados/1', searchPath: '/pesquisar' },

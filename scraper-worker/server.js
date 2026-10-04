@@ -118,7 +118,10 @@ app.get('/api/catalog', async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page || 1));
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-    const path = search ? `/animes/pesquisar?q=${encodeURIComponent(search)}&page=${page}` : `/animes?page=${page}`;
+    const movies = req.query.kind === 'movies';
+    const path = search
+      ? `/animes/pesquisar?q=${encodeURIComponent(search)}&page=${page}`
+      : movies ? `/animes/filmes?page=${page}` : `/animes?page=${page}`;
     res.json(await fetchAnimeApi(path));
   } catch (error) { res.status(502).json({ error: error.message }); }
 });
