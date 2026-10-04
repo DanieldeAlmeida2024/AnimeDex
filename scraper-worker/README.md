@@ -13,15 +13,42 @@ Ele mantém as dependências do fluxo original:
 ```bash
 cd scraper-worker
 npm install
-ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 npm start
+ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 CACHE_TTL_MS=1800000 npm start
 ```
 
 Endpoint:
 
 ```text
 GET /health
+GET /api/cache/stats
 GET /render?url=https%3A%2F%2Fanimefire.one%2F...
 ```
+
+## Cache temporário
+
+O worker mantém em memória, por padrão durante **30 minutos**, as respostas de:
+
+- catálogos e paginação;
+- buscas;
+- detalhes de animes e filmes;
+- detalhes de episódios e streams;
+- carrosséis da página inicial;
+- HTML de páginas renderizadas pelo Puppeteer.
+
+O cache é por processo: ele é limpo quando o container é reiniciado. Solicitações
+iguais feitas simultaneamente compartilham a mesma promessa, evitando scrapers
+duplicados quando o Stremio dispara várias requisições ao mesmo tempo.
+
+As opções podem ser alteradas no `.env` ou no `docker-compose.yml`:
+
+```dotenv
+CACHE_TTL_MS=1800000
+CACHE_MAX_ENTRIES=500
+```
+
+Após o TTL, a próxima solicitação daquela URL/consulta atualiza o valor no
+servidor. O endpoint `/health` informa o TTL e a quantidade de entradas atuais;
+`/api/cache/stats` informa também o limite configurado.
 
 ## Ligação com a Edge Function
 

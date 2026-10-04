@@ -7,6 +7,8 @@ services:
       PORT: 8787
       ANIMEFIRE_BASE_URL: ${ANIMEFIRE_BASE_URL:-https://animefire.one}
       BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-60000}
+      CACHE_TTL_MS: ${CACHE_TTL_MS:-1800000}
+      CACHE_MAX_ENTRIES: ${CACHE_MAX_ENTRIES:-500}
     ports:
       - "8787:8787"
     networks:

@@ -7,9 +7,56 @@ const port = Number(process.env.PORT || 8787);
 const configuredHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
 const allowedHosts = new Set([configuredHost, 'animefire.plus', 'animefire.io', 'animefire.one']);
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS || 60000);
+const cacheTtlMs = Number(process.env.CACHE_TTL_MS || 30 * 60 * 1000);
+const cacheMaxEntries = Math.max(20, Number(process.env.CACHE_MAX_ENTRIES || 500));
 const apiBase = 'https://api.animefire.one';
 let browserPromise;
-let homeCache = { expires: 0, value: null };
+
+// Cache temporário por processo: reiniciar o container limpa tudo.
+// A promessa em cada entrada evita scraping duplicado quando o Stremio dispara
+// várias solicitações iguais ao mesmo tempo (catálogo, meta ou episódio).
+const cache = new Map();
+
+function cacheKey(kind, key) { return `${kind}:${key}`; }
+
+function evictCacheIfNeeded() {
+  while (cache.size >= cacheMaxEntries) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) break;
+    cache.delete(oldestKey);
+  }
+}
+
+async function cached(key, loader) {
+  const now = Date.now();
+  const existing = cache.get(key);
+  if (existing?.value !== undefined && existing.expiresAt > now) {
+    return existing.value;
+  }
+  if (existing?.promise) return existing.promise;
+  if (existing) cache.delete(key);
+
+  evictCacheIfNeeded();
+  const entry = { value: undefined, expiresAt: 0, promise: null, createdAt: now };
+  entry.promise = Promise.resolve().then(loader).then(value => {
+    entry.value = value;
+    entry.expiresAt = Date.now() + cacheTtlMs;
+    entry.promise = null;
+    return value;
+  }).catch(error => {
+    cache.delete(key);
+    throw error;
+  });
+  cache.set(key, entry);
+  return entry.promise;
+}
+
+function clearExpiredCache() {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (!entry.promise && entry.expiresAt <= now) cache.delete(key);
+  }
+}
 
 function getBrowser() {
   if (!browserPromise) {
@@ -72,7 +119,6 @@ async function render(rawUrl) {
     if (navigationError) throw navigationError;
     await new Promise(resolve => setTimeout(resolve, 2000));
     const html = await page.content();
-    // Cheerio permanece aqui para normalizar o DOM renderizado antes de devolver o HTML.
     const $ = cheerio.load(html);
     $('script, noscript').remove();
     if (!html || html.length < 100) throw navigationError || new Error('HTML vazio após navegação');
@@ -101,52 +147,57 @@ async function fetchRenderedHtml(rawUrl) {
 }
 
 async function fetchAnimeApi(path) {
-  const response = await fetch(`${apiBase}${path}`, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 AnimeDexWorker/1.0',
-      Accept: 'application/json',
-      Referer: 'https://animefire.one/',
-      Origin: 'https://animefire.one',
-    },
-    signal: AbortSignal.timeout(Math.min(timeoutMs, 20000)),
+  return cached(cacheKey('api', path), async () => {
+    const response = await fetch(`${apiBase}${path}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 AnimeDexWorker/1.0',
+        Accept: 'application/json',
+        Referer: 'https://animefire.one/',
+        Origin: 'https://animefire.one',
+      },
+      signal: AbortSignal.timeout(Math.min(timeoutMs, 20000)),
+    });
+    if (!response.ok) throw new Error(`AnimeFire API HTTP ${response.status}`);
+    return await response.json();
   });
-  if (!response.ok) throw new Error(`AnimeFire API HTTP ${response.status}`);
-  return await response.json();
 }
 
 async function fetchHomeCatalogs() {
-  if (homeCache.value && homeCache.expires > Date.now()) return homeCache.value;
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  const apiResponses = [];
-  try {
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexHomeWorker/1.0');
-    page.on('response', async response => {
-      if (!response.url().includes('api.animefire.one')) return;
-      if (!(response.headers()['content-type'] || '').includes('json')) return;
-      try {
-        const payload = await response.json();
-        if (Array.isArray(payload?.data) || Array.isArray(payload?.data?.animes)) apiResponses.push({ url: response.url(), payload });
-      } catch (_) {}
-    });
-    await page.goto('https://animefire.one/', { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    await new Promise(resolve => setTimeout(resolve, 7000));
-    const dom = await page.evaluate(() => [...document.querySelectorAll('app-carousel')].map((carousel, index) => ({
-      index,
-      name: carousel.querySelector('app-carousel-header h2 span, h2 span')?.textContent?.trim() || `AnimeFire ${index + 1}`,
-      items: [...carousel.querySelectorAll('app-anime-card')].map(card => ({ name: card.querySelector('h3')?.textContent?.trim() || '', poster: card.querySelector('img')?.getAttribute('src') || '' })).filter(item => item.name),
-    })));
-    const catalogs = dom.map((section, index) => {
-      const response = apiResponses[index]?.payload;
-      const data = Array.isArray(response?.data) ? response.data : response?.data?.animes;
-      return { id: `home_${index}`, name: section.name, type: 'series', items: Array.isArray(data) ? data : section.items, sourceUrl: apiResponses[index]?.url || '' };
-    }).filter(section => section.items.length || section.name);
-    homeCache = { expires: Date.now() + 300000, value: catalogs };
-    return catalogs;
-  } finally { await page.close().catch(() => {}); }
+  return cached(cacheKey('home', 'catalogs'), async () => {
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    const apiResponses = [];
+    try {
+      await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexHomeWorker/1.0');
+      page.on('response', async response => {
+        if (!response.url().includes('api.animefire.one')) return;
+        if (!(response.headers()['content-type'] || '').includes('json')) return;
+        try {
+          const payload = await response.json();
+          if (Array.isArray(payload?.data) || Array.isArray(payload?.data?.animes)) apiResponses.push({ url: response.url(), payload });
+        } catch (_) {}
+      });
+      await page.goto('https://animefire.one/', { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+      await new Promise(resolve => setTimeout(resolve, 7000));
+      const dom = await page.evaluate(() => [...document.querySelectorAll('app-carousel')].map((carousel, index) => ({
+        index,
+        name: carousel.querySelector('app-carousel-header h2 span, h2 span')?.textContent?.trim() || `AnimeFire ${index + 1}`,
+        items: [...carousel.querySelectorAll('app-anime-card')].map(card => ({ name: card.querySelector('h3')?.textContent?.trim() || '', poster: card.querySelector('img')?.getAttribute('src') || '' })).filter(item => item.name),
+      })));
+      return dom.map((section, index) => {
+        const response = apiResponses[index]?.payload;
+        const data = Array.isArray(response?.data) ? response.data : response?.data?.animes;
+        return { id: `home_${index}`, name: section.name, type: 'series', items: Array.isArray(data) ? data : section.items, sourceUrl: apiResponses[index]?.url || '' };
+      }).filter(section => section.items.length || section.name);
+    } finally { await page.close().catch(() => {}); }
+  });
 }
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker' }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker', cacheTtlMs, cacheEntries: cache.size }));
+app.get('/api/cache/stats', (_req, res) => {
+  clearExpiredCache();
+  res.json({ ttlMs: cacheTtlMs, maxEntries: cacheMaxEntries, entries: cache.size, keys: [...cache.keys()] });
+});
 app.get('/api/catalog', async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page || 1));
@@ -181,24 +232,26 @@ app.get('/api/episode/:id', async (req, res) => {
 app.get('/render', async (req, res) => {
   try {
     if (typeof req.query.url !== 'string') return res.status(400).json({ error: 'url obrigatória' });
-    try {
-      const html = await fetchRenderedHtml(req.query.url);
-      return res.json({ html, method: 'fetch' });
-    } catch (error) {
-      console.warn('[direct-fetch] fallback para Puppeteer:', error.message);
-    }
-    const html = await Promise.race([
-      render(req.query.url),
-      new Promise((_, reject) => setTimeout(() => reject(new Error(`render HTTP timeout after ${timeoutMs + 5000} ms`)), timeoutMs + 5000)),
-    ]);
-    res.json({ html });
+    const url = assertAllowed(req.query.url).toString();
+    const html = await cached(cacheKey('render', url), async () => {
+      try {
+        return await fetchRenderedHtml(url);
+      } catch (error) {
+        console.warn('[direct-fetch] fallback para Puppeteer:', error.message);
+      }
+      return await Promise.race([
+        render(url),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`render HTTP timeout after ${timeoutMs + 5000} ms`)), timeoutMs + 5000)),
+      ]);
+    });
+    res.json({ html, cachedForMs: cacheTtlMs });
   } catch (error) {
     console.error('[render]', error.message);
     res.status(502).json({ error: error.message });
   }
 });
 
-const server = app.listen(port, '0.0.0.0', () => console.log(`Scraper worker ouvindo na porta ${port}`));
+const server = app.listen(port, '0.0.0.0', () => console.log(`Scraper worker ouvindo na porta ${port}; cache TTL ${cacheTtlMs} ms`));
 async function shutdown() {
   server.close();
   if (browserPromise) (await browserPromise).close().catch(() => {});
