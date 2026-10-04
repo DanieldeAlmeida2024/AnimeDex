@@ -51,7 +51,7 @@ async function render(rawUrl) {
       if (['image', 'font', 'media'].includes(resource)) request.abort();
       else request.continue();
     });
-    await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    await page.goto(url.toString(), { waitUntil: 'commit', timeout: timeoutMs });
     await page.waitForNetworkIdle({ idleTime: 500, timeout: Math.min(timeoutMs, 8000) }).catch(() => {});
     const html = await page.content();
     // Cheerio permanece aqui para normalizar o DOM renderizado antes de devolver o HTML.
