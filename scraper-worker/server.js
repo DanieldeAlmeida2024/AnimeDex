@@ -4,7 +4,8 @@ const cheerio = require('cheerio');
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
-const allowedHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
+const configuredHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
+const allowedHosts = new Set([configuredHost, 'animefire.plus', 'animefire.io', 'animefire.one']);
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS || 60000);
 let browserPromise;
 
@@ -33,7 +34,7 @@ function getBrowser() {
 
 function assertAllowed(rawUrl) {
   const url = new URL(rawUrl);
-  if (!['http:', 'https:'].includes(url.protocol) || url.hostname !== allowedHost) {
+  if (!['http:', 'https:'].includes(url.protocol) || !allowedHosts.has(url.hostname)) {
     throw new Error('host não permitido');
   }
   return url;
