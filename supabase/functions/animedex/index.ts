@@ -3,6 +3,7 @@ import { catalogs, getCatalog, settings, type MediaType } from './config.ts';
 const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || 'http://163.176.133.210:8787').replace(/\/$/, '');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const CACHE_TTL_MS = 30 * 60 * 1000;
 const headers = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -134,8 +135,11 @@ async function stream(type: MediaType, rawId: string) {
     if (!id) throw new Error('Filme sem episódio/stream disponível');
   }
   try {
-    const cached = await db<Array<{ streams: Array<{ url: string; audio?: string; qualities?: string[] }> }>>(`episodes?select=streams&episode_url=eq.${encodeURIComponent(episodeUrl(id))}&limit=1`);
-    if (cached[0]?.streams?.length) return { streams: toStremioStreams(cached[0].streams) };
+    const cached = await db<Array<{ streams: Array<{ url: string; audio?: string; qualities?: string[] }>; updated_at: string }>>(`episodes?select=streams,updated_at&episode_url=eq.${encodeURIComponent(episodeUrl(id))}&limit=1`);
+    const cachedAt = cached[0]?.updated_at ? Date.parse(cached[0].updated_at) : 0;
+    if (cached[0]?.streams?.length && Number.isFinite(cachedAt) && Date.now() - cachedAt < CACHE_TTL_MS) {
+      return { streams: toStremioStreams(cached[0].streams) };
+    }
   } catch (error) { console.warn('[cache stream read]', error); }
   const payload = await proxy<{ data: { streams?: Array<{ url: string; audio?: string; qualities?: string[] }> } }>(`/api/episode/${encodeURIComponent(id)}`);
   const sourceStreams = payload.data.streams || [];
