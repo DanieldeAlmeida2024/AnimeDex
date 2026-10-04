@@ -105,7 +105,7 @@ async function render(rawUrl) {
     let timer;
     try {
       await Promise.race([
-        page.goto(url.toString(), { waitUntil: 'commit', timeout: timeoutMs }),
+        page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: timeoutMs }),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(new Error(`navigation hard timeout after ${timeoutMs} ms`)), timeoutMs);
         }),
@@ -179,7 +179,7 @@ async function fetchHomeCatalogs() {
       try {
         // A home pode manter requisições pendentes por causa do Cloudflare.
         // O shell Angular já é suficiente para continuar capturando as APIs.
-        await page.goto('https://animefire.one/', { waitUntil: 'commit', timeout: Math.min(timeoutMs, 15000) });
+        await page.goto('https://animefire.one/', { waitUntil: 'domcontentloaded', timeout: Math.min(timeoutMs, 15000) });
       } catch (error) {
         console.warn('[home-navigation] continuando após timeout parcial:', error.message);
       }
