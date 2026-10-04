@@ -12,7 +12,20 @@ function getBrowser() {
   if (!browserPromise) {
     browserPromise = puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      dumpio: true,
+      timeout: 60000,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-features=UseDBus,Translate',
+        '--no-first-run',
+        '--no-default-browser-check',
+      ],
     }).catch(error => { browserPromise = undefined; throw error; });
   }
   return browserPromise;
