@@ -7,6 +7,7 @@ Esta adaptação substitui o processo Node.js/Prisma por:
 - `fetch` nativo e parsing textual pequeno para o caminho leve;
 - fallback opcional para o `scraper-worker`, mantendo Cheerio/Puppeteer nas páginas que exigem DOM renderizado;
 - respostas compatíveis com `manifest`, `catalog`, `meta` e `stream` do Stremio.
+- cache persistente dos metadados, episódios e links HLS em `public.animes` e `public.episodes`.
 
 ## Estrutura
 
@@ -80,7 +81,13 @@ Para adicionar, remover ou renomear catálogos, edite apenas `functions/animedex
 
 O parser leve depende da estrutura atual do AnimeFire e pode precisar de ajuste se o HTML mudar. Para páginas que exigem JavaScript ou seletores complexos, use o worker Puppeteer/Cheerio. A função limita o catálogo a 20 itens por chamada e o stream a 5 links.
 
-O backend devolve a URL do stream ao Stremio; ele não retransmite o vídeo. Links temporários devem ser buscados sob demanda e não devem ser persistidos como credenciais.
+O backend devolve a URL do stream ao Stremio; ele não retransmite o vídeo. Os links HLS são armazenados como cache operacional e podem expirar na origem; nesse caso, é necessário invalidar ou atualizar o registro.
+
+## Cache de episódios e streams
+
+Quando o Stremio consulta os metadados, a função grava o anime e seus episódios no Postgres. Quando solicita um stream, a função primeiro procura o episódio pelo endpoint `https://api.animefire.one/episode/{id}` salvo em `episodes.episode_url`. Se `episodes.streams` já estiver preenchido, os links HLS são devolvidos diretamente do banco, sem nova consulta à fonte. Caso contrário, a API é consultada uma vez e os streams retornados são gravados para as próximas reproduções.
+
+O cache é feito exclusivamente no servidor com `SUPABASE_SERVICE_ROLE_KEY`; essa chave nunca é enviada ao Stremio, à VM ou ao ESP32.
 
 ## Verificação local
 

@@ -1,6 +1,8 @@
 import { catalogs, getCatalog, settings, type MediaType } from './config.ts';
 
 const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || 'http://163.176.133.210:8787').replace(/\/$/, '');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const headers = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -30,6 +32,34 @@ async function proxy<T>(path: string): Promise<T> {
   const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(25_000) });
   if (!response.ok) throw new Error(`Worker AnimeFire HTTP ${response.status}`);
   return await response.json() as T;
+}
+
+async function db<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error('Cache Supabase não configurado');
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation,resolution=merge-duplicates', ...(init.headers || {}) },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`Supabase cache HTTP ${response.status}`);
+  const text = await response.text();
+  return (text ? JSON.parse(text) : []) as T;
+}
+
+function animeUrl(id: string) { return `https://animefire.one/anime/${encodeURIComponent(id)}`; }
+function episodeUrl(id: string) { return `https://api.animefire.one/episode/${encodeURIComponent(id)}`; }
+
+async function cacheAnime(anime: ApiAnime, type: MediaType, episodes: ApiEpisode[] = []) {
+  try {
+    const rows = await db<Array<{ id: string }>>('animes?on_conflict=animefire_url', { method: 'POST', body: JSON.stringify({ animefire_url: animeUrl(anime.id), title: titleOf(anime), alternate_title: anime.titles?.US || anime.titles?.JP || null, type, poster: anime.poster_src || null, background: anime.backdrop_src || null, description: anime.synopsis || null, genres: anime.genres || [], release_year: anime.published_at ? Number(anime.published_at.slice(0, 4)) || null : null }) });
+    const animeRow = rows[0] || (await db<Array<{ id: string }>>(`animes?select=id&animefire_url=eq.${encodeURIComponent(animeUrl(anime.id))}&limit=1`))[0];
+    if (!animeRow) return;
+    for (const episode of episodes) await db('episodes?on_conflict=anime_id,season,episode', { method: 'POST', body: JSON.stringify({ anime_id: animeRow.id, season: Math.max(1, episode.season || 1), episode: Math.max(1, episode.number || 1), title: episode.title || `Episódio ${episode.number || 1}`, episode_url: episodeUrl(episode.id), streams: [] }) });
+  } catch (error) { console.warn('[cache anime]', error); }
+}
+
+function toStremioStreams(streams: Array<{ url: string; audio?: string; qualities?: string[] }>) {
+  return streams.map(item => ({ name: `AnimeFire ${item.audio || ''}`.trim(), title: item.audio || 'AnimeFire', quality: item.qualities?.join(', ') || undefined, url: item.url, behaviorHints: { bingeGroup: 'animedex-animefire', proxyHeaders: { request: { Referer: 'https://animefire.one/', Origin: 'https://animefire.one' } } } }));
 }
 
 function unwrapCatalog(payload: any): ApiAnime[] {
@@ -72,6 +102,7 @@ async function meta(type: MediaType, rawId: string) {
   const payload = await proxy<{ data: { hero: ApiAnime; seasons: unknown[]; episodes: ApiEpisode[] } }>(`/api/anime/${encodeURIComponent(id)}`);
   const data = payload.data;
   const anime = data.hero;
+  await cacheAnime(anime, type, data.episodes || []);
   return {
     meta: {
       id: type === 'movie' ? movieId(anime.id) : addonId(anime.id),
@@ -102,23 +133,17 @@ async function stream(type: MediaType, rawId: string) {
     id = movie.data.episodes?.[0]?.id || '';
     if (!id) throw new Error('Filme sem episódio/stream disponível');
   }
+  try {
+    const cached = await db<Array<{ streams: Array<{ url: string; audio?: string; qualities?: string[] }> }>>(`episodes?select=streams&episode_url=eq.${encodeURIComponent(episodeUrl(id))}&limit=1`);
+    if (cached[0]?.streams?.length) return { streams: toStremioStreams(cached[0].streams) };
+  } catch (error) { console.warn('[cache stream read]', error); }
   const payload = await proxy<{ data: { streams?: Array<{ url: string; audio?: string; qualities?: string[] }> } }>(`/api/episode/${encodeURIComponent(id)}`);
+  const sourceStreams = payload.data.streams || [];
+  try {
+    await db(`episodes?episode_url=eq.${encodeURIComponent(episodeUrl(id))}`, { method: 'PATCH', body: JSON.stringify({ streams: sourceStreams }) });
+  } catch (error) { console.warn('[cache stream write]', error); }
   return {
-    streams: (payload.data.streams || []).map((item) => ({
-      name: `AnimeFire ${item.audio || ''}`.trim(),
-      title: item.audio || 'AnimeFire',
-      quality: item.qualities?.join(', ') || undefined,
-      url: item.url,
-      behaviorHints: {
-        bingeGroup: 'animedex-animefire',
-        proxyHeaders: {
-          request: {
-            Referer: 'https://animefire.one/',
-            Origin: 'https://animefire.one',
-          },
-        },
-      },
-    })),
+    streams: toStremioStreams(sourceStreams),
   };
 }
 
