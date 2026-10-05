@@ -31,7 +31,9 @@ const episodeId = (id: string) => `animedex_episode_${encodeURIComponent(id)}`;
 
 async function proxy<T>(path: string): Promise<T> {
   try {
-    const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(10_000) });
+    // Home/carrosséis podem levar mais que o timeout curto usado pelos endpoints leves da API.
+    const timeoutMs = path.startsWith('/api/home/') ? 45_000 : 10_000;
+    const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
     if (response.ok) return await response.json() as T;
     throw new Error(`Worker AnimeFire HTTP ${response.status}`);
   } catch (workerError) {
@@ -88,7 +90,7 @@ async function cacheAnime(anime: ApiAnime, type: MediaType, episodes: ApiEpisode
 }
 
 function toStremioStreams(streams: Array<{ url: string; audio?: string; qualities?: string[] }>) {
-  return streams.map(item => ({ name: `AnimeFire ${item.audio || ''}`.trim(), title: item.audio || 'AnimeFire', quality: item.qualities?.join(', ') || undefined, url: item.url, behaviorHints: { bingeGroup: 'animedex-animefire', proxyHeaders: { request: { Referer: 'https://animefire.one/', Origin: 'https://animefire.one' } } } }));
+  return streams.map(item => ({ name: `AnimeFire ${item.audio || ''}`.trim(), title: item.audio || 'AnimeFire', quality: item.qualities?.join(', ') || undefined, url: item.url, behaviorHints: { notWebReady: true, bingeGroup: 'animedex-animefire', proxyHeaders: { request: { Referer: 'https://animefire.one/', Origin: 'https://animefire.one' } } } }));
 }
 
 function unwrapCatalog(payload: any): ApiAnime[] {
