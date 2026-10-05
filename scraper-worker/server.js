@@ -73,6 +73,7 @@ function getBrowser() {
         '--disable-extensions',
         '--disable-background-networking',
         '--disable-features=UseDBus,Translate',
+        '--enable-features=NetworkServiceInProcess2',
         '--no-first-run',
         '--no-default-browser-check',
       ],
