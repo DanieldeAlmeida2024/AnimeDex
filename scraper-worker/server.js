@@ -259,6 +259,59 @@ function extractApiItems(payload) {
   return [];
 }
 
+
+async function resolveHomeCatalogItems(items) {
+  const source = Array.isArray(items) ? items : [];
+  const results = new Array(source.length);
+  const concurrency = Math.min(6, Math.max(1, source.length));
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= source.length) return;
+
+      const item = source[index];
+      if (!item?.id) continue;
+
+      try {
+        const payload = await fetchAnimeApi(`/episode/${encodeURIComponent(item.id)}`);
+        const episode = payload?.data;
+        const anime = episode?.anime;
+        if (!anime?.id) throw new Error('episódio sem anime relacionado');
+
+        results[index] = {
+          ...anime,
+          episodeId: episode.id,
+          season: episode.season,
+          number: episode.number,
+          audio: episode.audio,
+          episodeTitle: episode.title,
+        };
+      } catch (error) {
+        // O fallback Puppeteer pode produzir itens de anime diretamente.
+        // Nesse caso, preserva o item em vez de descartar o catálogo inteiro.
+        if (item.titles || item.poster_src || item.name) {
+          results[index] = item;
+          console.warn(`[home-catalog] não foi possível resolver episódio ${item.id}: ${error.message}; preservando item`);
+        } else {
+          console.warn(`[home-catalog] ignorando episódio ${item.id}: ${error.message}`);
+        }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+
+  const seenAnimeIds = new Set();
+  return results.filter(Boolean).filter(item => {
+    const id = item?.id;
+    if (!id || seenAnimeIds.has(id)) return false;
+    seenAnimeIds.add(id);
+    return true;
+  });
+}
+
 function labelFromApiUrl(rawUrl, index) {
   const value = rawUrl.toLowerCase();
   if (value.includes('em-breve') || value.includes('lancamentos')) return value.includes('em-breve') ? 'Em breve' : 'Melhores em lançamento';
@@ -293,7 +346,12 @@ app.get('/api/home/catalog/:id', async (req, res) => {
     const catalogs = await fetchHomeCatalogs();
     const catalog = catalogs.find(item => item.id === req.params.id);
     if (!catalog) return res.status(404).json({ error: 'Carrossel não encontrado' });
-    res.json({ data: catalog.items });
+
+    const items = await cached(cacheKey('home-catalog', req.params.id), () =>
+      resolveHomeCatalogItems(catalog.items)
+    );
+
+    res.json({ data: items });
   } catch (error) { res.status(502).json({ error: error.message }); }
 });
 app.get('/api/anime/:id', async (req, res) => {
