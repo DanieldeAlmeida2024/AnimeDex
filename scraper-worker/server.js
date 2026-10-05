@@ -165,6 +165,37 @@ async function fetchAnimeApi(path) {
 
 async function fetchHomeCatalogs() {
   return cached(cacheKey('home', 'catalogs'), async () => {
+    try {
+      const response = await fetch(`${apiBase}/home`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 AnimeDexHomeWorker/1.0',
+          Accept: 'application/json',
+          Referer: 'https://animefire.one/',
+          Origin: 'https://animefire.one',
+        },
+        signal: AbortSignal.timeout(Math.min(timeoutMs, 20000)),
+      });
+      if (!response.ok) throw new Error(`AnimeFire home API HTTP ${response.status}`);
+      const payload = await response.json();
+      const carousels = Array.isArray(payload?.data?.carousels) ? payload.data.carousels : [];
+      const sections = [];
+      const seen = new Set();
+      const addSection = (name, items, sourceUrl = '') => {
+        if ((name || '').trim().toLowerCase() === 'continue assistindo') return;
+        const valid = Array.isArray(items) ? items.filter(item => item?.id || item?.name || item?.titles) : [];
+        if (!valid.length) return;
+        const signature = valid.map(item => item.id || item.name || item.titles?.BR || '').join('|');
+        if (seen.has(signature)) return;
+        seen.add(signature);
+        sections.push({ id: `home_${sections.length}`, name: name || `AnimeFire ${sections.length + 1}`, type: 'series', items: valid, sourceUrl });
+      };
+      carousels.forEach(carousel => addSection(carousel?.title || carousel?.key || '', carousel?.items, `${apiBase}/home`));
+      if (sections.length) return sections;
+      throw new Error('Nenhum carrossel foi retornado pela API /home');
+    } catch (error) {
+      console.warn('[home-api] fallback para Puppeteer:', error.message);
+    }
+
     const browser = await getBrowser();
     const page = await browser.newPage();
     const apiResponses = [];
