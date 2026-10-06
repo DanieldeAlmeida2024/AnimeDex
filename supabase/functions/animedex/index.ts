@@ -347,6 +347,45 @@ async function meta(type: MediaType, rawId: string) {
     if (anime) await cacheAnime(anime, type, episodes);
   } catch (error) {
     console.warn('[meta anime source]', error);
+
+    // A busca AnimeFire pode retornar um ID de episódio. Nesse caso,
+    // resolve o episódio primeiro para obter o ID canônico do anime.
+    if (type === 'series') {
+      try {
+        const episodePayload = await proxy<any>(`/api/episode/${encodeURIComponent(id)}`);
+        const episode = episodePayload?.data;
+        const episodeAnime = episode?.anime;
+        if (episodeAnime?.id) {
+          anime = episodeAnime as ApiAnime;
+          episodes = extractEpisodesFromPayload(episodePayload);
+          if (!episodes.length && episode?.id) {
+            episodes = [{
+              id: episode.id,
+              title: episode.title || `Episódio ${episode.number || 1}`,
+              season: Number(episode.season) || 1,
+              number: Number(episode.number) || 1,
+              still_src: episode.still_src,
+              synopsis: episode.synopsis,
+              audio: episode.audio,
+            }];
+          }
+
+          try {
+            const animePayload = await proxy<any>(`/api/anime/${encodeURIComponent(episodeAnime.id)}`);
+            const resolvedAnime = extractAnimeFromPayload(animePayload);
+            const resolvedEpisodes = extractEpisodesFromPayload(animePayload);
+            if (resolvedAnime) anime = resolvedAnime;
+            if (resolvedEpisodes.length) episodes = resolvedEpisodes;
+          } catch (resolvedError) {
+            console.warn('[meta episode->anime source]', resolvedError);
+          }
+
+          await cacheAnime(anime, type, episodes);
+        }
+      } catch (episodeError) {
+        console.warn('[meta episode resolution]', episodeError);
+      }
+    }
   }
 
   if (!anime) {
