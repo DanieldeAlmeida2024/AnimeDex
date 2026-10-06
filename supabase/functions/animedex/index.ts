@@ -28,6 +28,21 @@ const titleOf = (anime: ApiAnime) => anime.titles?.BR || anime.titles?.US || ani
 const addonId = (id: string) => `animedex_series_${encodeURIComponent(id)}`;
 const movieId = (id: string) => `animedex_movie_${encodeURIComponent(id)}`;
 const episodeId = (id: string) => `animedex_episode_${encodeURIComponent(id)}`;
+const homeEpisodeMetaId = (animeId: string, episodeIdValue: string) =>
+  `animedex_home_episode_${encodeURIComponent(animeId)}|${encodeURIComponent(episodeIdValue)}`;
+
+function parseHomeEpisodeMetaId(rawId: string) {
+  const decoded = decodeURIComponent(rawId);
+  const prefix = 'animedex_home_episode_';
+  if (!decoded.startsWith(prefix)) return null;
+  const payload = decoded.slice(prefix.length);
+  const separator = payload.indexOf('|');
+  if (separator <= 0) return null;
+  const animeId = decodeURIComponent(payload.slice(0, separator));
+  const episodeIdValue = decodeURIComponent(payload.slice(separator + 1));
+  if (!animeId || !episodeIdValue) return null;
+  return { animeId, episodeId: episodeIdValue };
+}
 
 async function proxy<T>(path: string): Promise<T> {
   try {
@@ -124,7 +139,18 @@ async function catalog(type: MediaType, id: string, search?: string, skip = 0) {
   if (isHomeCatalog) {
     const payload = await proxy<any>(`/api/home/catalog/${encodeURIComponent(id)}`);
     const homeItems = unwrapCatalog(payload);
-    return { metas: homeItems.slice(skip, skip + settings.maxCatalogItems).map((anime) => ({ id: addonId(anime.id), type: 'series', name: titleOf(anime), poster: anime.poster_src, background: anime.backdrop_src, description: anime.synopsis, releaseInfo: anime.published_at?.slice(0, 4), genres: anime.genres || [] })) };
+    return {
+      metas: homeItems.slice(skip, skip + settings.maxCatalogItems).map((anime) => ({
+        id: anime.episodeId ? homeEpisodeMetaId(anime.id, anime.episodeId) : addonId(anime.id),
+        type: 'series',
+        name: titleOf(anime),
+        poster: anime.poster_src,
+        background: anime.backdrop_src,
+        description: anime.synopsis,
+        releaseInfo: anime.published_at?.slice(0, 4),
+        genres: anime.genres || [],
+      })),
+    };
   }
   const query = search?.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
   const kind = type === 'movie' ? '&kind=movies' : '';
@@ -146,7 +172,8 @@ async function catalog(type: MediaType, id: string, search?: string, skip = 0) {
 
 async function meta(type: MediaType, rawId: string) {
   if (type !== 'series' && type !== 'movie') throw new Error('Tipo não suportado');
-  const id = decodeURIComponent(rawId.replace(/^animedex_(?:series|movie)_/, ''));
+  const homeContext = type === 'series' ? parseHomeEpisodeMetaId(rawId) : null;
+  const id = homeContext?.animeId || decodeURIComponent(rawId.replace(/^animedex_(?:series|movie)_/, ''));
   const payload = await proxy<{ data: { hero: ApiAnime; seasons: unknown[]; episodes: ApiEpisode[] } }>(`/api/anime/${encodeURIComponent(id)}`);
   const data = payload.data;
   const anime = data.hero;
@@ -161,14 +188,21 @@ async function meta(type: MediaType, rawId: string) {
       description: anime.synopsis,
       genres: anime.genres || [],
       releaseInfo: anime.published_at?.slice(0, 4),
-      ...(type === 'series' ? { videos: (data.episodes || []).map((episode) => ({
-        id: episodeId(episode.id),
-        title: episode.title,
-        season: episode.season,
-        episode: episode.number,
-        thumbnail: episode.still_src,
-        overview: episode.synopsis,
-      })) } : {}),
+      ...(type === 'series' ? {
+        videos: (data.episodes || []).map((episode) => ({
+          id: episodeId(episode.id),
+          title: episode.title || `Episódio ${episode.number}`,
+          season: episode.season,
+          episode: episode.number,
+          thumbnail: episode.still_src,
+          overview: episode.synopsis,
+        })),
+        ...(homeContext?.episodeId ? {
+          behaviorHints: {
+            defaultVideoId: episodeId(homeContext.episodeId),
+          },
+        } : {}),
+      } : {}),
     },
   };
 }
