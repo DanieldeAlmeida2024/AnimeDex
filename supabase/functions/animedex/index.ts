@@ -150,7 +150,7 @@ async function catalog(type: MediaType, id: string, search?: string, skip = 0) {
   const definition = getCatalog(id);
   const isHomeCatalog = type === 'series' && /^home_\d+$/.test(id);
   if ((!definition || definition.type !== type) && !isHomeCatalog) throw new Error('Catálogo não disponível');
-  if (isHomeCatalog) {
+  if (isHomeCatalog && !search?.trim()) {
     const payload = await proxy<any>(`/api/home/catalog/${encodeURIComponent(id)}`);
     const homeItems = unwrapCatalog(payload);
     return {
@@ -264,7 +264,9 @@ async function manifest() {
       type: item.type,
       id: item.id,
       name: item.name,
-      extra: [{ name: 'search', isRequired: false }, { name: 'skip', isRequired: false }],
+      extra: item.id === 'home_0'
+        ? [{ name: 'search', isRequired: false }, { name: 'skip', isRequired: false }]
+        : [{ name: 'skip', isRequired: false }],
     })),
   };
 }
@@ -278,11 +280,22 @@ Deno.serve(async (request) => {
     const path = (addonIndex >= 0 ? segments.slice(addonIndex + 1) : segments.slice(-3)).join('/');
     if (path === 'manifest.json') return json(await manifest());
     const parts = path.split('/');
-    if (parts.length === 3 && parts[2].endsWith('.json')) {
-      const id = parts[2].slice(0, -5);
-      if (parts[0] === 'catalog') return json(await catalog(parts[1] as MediaType, id, url.searchParams.get('search') || undefined, Math.max(0, Number(url.searchParams.get('skip') || 0))));
-      if (parts[0] === 'meta') return json(await meta(parts[1] as MediaType, id));
-      if (parts[0] === 'stream') return json(await stream(parts[1] as MediaType, id));
+    if (parts.length >= 3 && parts[parts.length - 1].endsWith('.json')) {
+      const resource = parts[0];
+      const type = parts[1] as MediaType;
+      const id = parts[2];
+      const extraSegment = parts.length > 3
+        ? parts.slice(3).join('/').slice(0, -5)
+        : '';
+      const extra = new URLSearchParams(extraSegment.replace(/&amp;/g, '&'));
+      const search = extra.get('search') || url.searchParams.get('search') || undefined;
+      const skip = Math.max(0, Number(extra.get('skip') || url.searchParams.get('skip') || 0));
+
+      if (resource === 'catalog') return json(await catalog(type, id, search, skip));
+      if (parts.length === 3) {
+        if (resource === 'meta') return json(await meta(type, id));
+        if (resource === 'stream') return json(await stream(type, id));
+      }
     }
     return json({ error: 'Rota não encontrada' }, 404);
   } catch (error) {
