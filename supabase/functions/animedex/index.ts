@@ -146,6 +146,152 @@ function unwrapCatalog(payload: any): ApiAnime[] {
   return [];
 }
 
+function extractAnimeFromPayload(payload: any): ApiAnime | null {
+  const candidates = [
+    payload?.data?.hero,
+    payload?.data?.anime,
+    payload?.hero,
+    payload?.anime,
+    payload?.data,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object' && typeof candidate.id === 'string' &&
+      (candidate.titles || candidate.name || candidate.poster_src || candidate.synopsis)) {
+      return candidate as ApiAnime;
+    }
+  }
+
+  return null;
+}
+
+function extractEpisodesFromPayload(payload: any): ApiEpisode[] {
+  const candidates = [
+    payload?.data?.episodes,
+    payload?.episodes,
+    payload?.data?.hero?.episodes,
+    payload?.data?.anime?.episodes,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      const valid = candidate.filter((episode) => episode && episode.id && Number.isFinite(Number(episode.season)) && Number.isFinite(Number(episode.number)));
+      if (valid.length) return valid;
+    }
+  }
+
+  const seasons = payload?.data?.seasons || payload?.seasons;
+  if (Array.isArray(seasons)) {
+    const flattened = seasons.flatMap((season: any) =>
+      Array.isArray(season?.episodes)
+        ? season.episodes.map((episode: any) => ({
+          ...episode,
+          season: episode?.season || season?.season || season?.number || 1,
+        }))
+        : []
+    );
+    const valid = flattened.filter((episode: any) => episode?.id && Number.isFinite(Number(episode?.season)) && Number.isFinite(Number(episode?.number)));
+    if (valid.length) return valid;
+  }
+
+  return [];
+}
+
+async function cacheCatalogResults(items: ApiAnime[], type: MediaType) {
+  const validItems = items.filter((anime) => anime?.id);
+  if (!validItems.length) return;
+
+  try {
+    const rows = validItems.map((anime) => ({
+      animefire_url: animeUrl(anime.id),
+      title: titleOf(anime),
+      alternate_title: anime.titles?.US || anime.titles?.JP || null,
+      type,
+      poster: anime.poster_src || null,
+      background: anime.backdrop_src || null,
+      description: anime.synopsis || null,
+      genres: anime.genres || [],
+      release_year: anime.published_at ? Number(anime.published_at.slice(0, 4)) || null : null,
+    }));
+
+    const saved = await db<Array<{ id: string; animefire_url: string }>>('animes?on_conflict=animefire_url', {
+      method: 'POST',
+      body: JSON.stringify(rows),
+    });
+
+    const episodeRows: Array<Record<string, unknown>> = [];
+    for (const anime of validItems) {
+      const episodes = extractEpisodesFromPayload(anime);
+      if (!episodes.length) continue;
+      const savedAnime = saved.find((row) => row.animefire_url === animeUrl(anime.id));
+      if (!savedAnime) continue;
+
+      for (const episode of episodes) {
+        episodeRows.push({
+          anime_id: savedAnime.id,
+          season: Math.max(1, Number(episode.season) || 1),
+          episode: Math.max(1, Number(episode.number) || 1),
+          title: episode.title || `Episódio ${episode.number || 1}`,
+          episode_url: episodeUrl(episode.id),
+          streams: [],
+        });
+      }
+    }
+
+    if (episodeRows.length) {
+      await db('episodes?on_conflict=anime_id,season,episode', {
+        method: 'POST',
+        body: JSON.stringify(episodeRows),
+      });
+    }
+  } catch (error) {
+    console.warn('[cache catalog]', error);
+  }
+}
+
+async function loadCachedAnime(id: string, type: MediaType) {
+  try {
+    const rows = await db<Array<{
+      id: string;
+      animefire_url: string;
+      title: string;
+      alternate_title?: string | null;
+      type: MediaType;
+      poster?: string | null;
+      background?: string | null;
+      description?: string | null;
+      genres?: string[] | null;
+      release_year?: number | null;
+    }>>(`animes?select=id,animefire_url,title,alternate_title,type,poster,background,description,genres,release_year&animefire_url=eq.${encodeURIComponent(animeUrl(id))}&type=eq.${encodeURIComponent(type)}&limit=1`);
+
+    return rows[0] || null;
+  } catch (error) {
+    console.warn('[cache anime read]', error);
+    return null;
+  }
+}
+
+async function loadCachedEpisodes(animeRowId: string): Promise<ApiEpisode[]> {
+  try {
+    const rows = await db<Array<{
+      season: number;
+      episode: number;
+      title: string;
+      episode_url: string;
+    }>>(`episodes?select=season,episode,title,episode_url&anime_id=eq.${encodeURIComponent(animeRowId)}&order=season.asc,episode.asc`);
+
+    return rows.map((row) => ({
+      id: decodeURIComponent(row.episode_url.split('/').pop() || ''),
+      title: row.title,
+      season: Number(row.season) || 1,
+      number: Number(row.episode) || 1,
+    }));
+  } catch (error) {
+    console.warn('[cache episodes read]', error);
+    return [];
+  }
+}
+
 async function catalog(type: MediaType, id: string, search?: string, skip = 0) {
   const definition = getCatalog(id);
   const isHomeCatalog = type === 'series' && /^home_\d+$/.test(id);
@@ -170,6 +316,7 @@ async function catalog(type: MediaType, id: string, search?: string, skip = 0) {
   const kind = type === 'movie' ? '&kind=movies' : '';
   const payload = await proxy<any>(`/api/catalog?page=${Math.floor(skip / settings.maxCatalogItems) + 1}${kind}${query}`);
   const items = unwrapCatalog(payload).slice(skip % settings.maxCatalogItems, skip % settings.maxCatalogItems + settings.maxCatalogItems);
+  if (search?.trim() && items.length) await cacheCatalogResults(items, type);
   return {
     metas: items.map((anime) => ({
       id: type === 'movie' ? movieId(anime.id) : addonId(anime.id),
@@ -188,10 +335,41 @@ async function meta(type: MediaType, rawId: string) {
   if (type !== 'series' && type !== 'movie') throw new Error('Tipo não suportado');
   const homeContext = type === 'series' ? parseHomeEpisodeMetaId(rawId) : null;
   const id = homeContext?.animeId || decodeURIComponent(rawId.replace(/^animedex_(?:series|movie)_/, ''));
-  const payload = await proxy<{ data: { hero: ApiAnime; seasons: unknown[]; episodes: ApiEpisode[] } }>(`/api/anime/${encodeURIComponent(id)}`);
-  const data = payload.data;
-  const anime = data.hero;
-  await cacheAnime(anime, type, data.episodes || []);
+
+  let anime: ApiAnime | null = null;
+  let episodes: ApiEpisode[] = [];
+  let cachedAnime: Awaited<ReturnType<typeof loadCachedAnime>> = null;
+
+  try {
+    const payload = await proxy<any>(`/api/anime/${encodeURIComponent(id)}`);
+    anime = extractAnimeFromPayload(payload);
+    episodes = extractEpisodesFromPayload(payload);
+    if (anime) await cacheAnime(anime, type, episodes);
+  } catch (error) {
+    console.warn('[meta anime source]', error);
+  }
+
+  if (!anime) {
+    cachedAnime = await loadCachedAnime(id, type);
+    if (!cachedAnime) throw new Error('Anime não encontrado na fonte AnimeFire nem no cache');
+    anime = {
+      id,
+      titles: {
+        BR: cachedAnime.title,
+        US: cachedAnime.alternate_title || '',
+      },
+      poster_src: cachedAnime.poster || undefined,
+      backdrop_src: cachedAnime.background || undefined,
+      synopsis: cachedAnime.description || undefined,
+      genres: cachedAnime.genres || [],
+      published_at: cachedAnime.release_year ? String(cachedAnime.release_year) : undefined,
+    };
+    episodes = await loadCachedEpisodes(cachedAnime.id);
+  } else if (!episodes.length) {
+    cachedAnime = await loadCachedAnime(id, type);
+    if (cachedAnime) episodes = await loadCachedEpisodes(cachedAnime.id);
+  }
+
   return {
     meta: {
       id: type === 'movie' ? movieId(anime.id) : addonId(anime.id),
@@ -203,7 +381,7 @@ async function meta(type: MediaType, rawId: string) {
       genres: anime.genres || [],
       releaseInfo: anime.published_at?.slice(0, 4),
       ...(type === 'series' ? {
-        videos: (data.episodes || []).map((episode) => ({
+        videos: episodes.map((episode) => ({
           id: episodeId(episode.id),
           title: episode.title || `Episódio ${episode.number}`,
           season: episode.season,
