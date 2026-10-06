@@ -500,7 +500,7 @@ Deno.serve(async (request) => {
     if (parts.length >= 3 && parts[parts.length - 1].endsWith('.json')) {
       const resource = parts[0];
       const type = parts[1] as MediaType;
-      const id = parts[2];
+      const id = parts[2].replace(/\.json$/, '');
       const extraSegment = parts.length > 3
         ? parts.slice(3).join('/').slice(0, -5)
         : '';
