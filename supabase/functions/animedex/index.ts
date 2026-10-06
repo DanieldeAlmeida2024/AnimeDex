@@ -85,7 +85,24 @@ async function cacheAnime(anime: ApiAnime, type: MediaType, episodes: ApiEpisode
     const rows = await db<Array<{ id: string }>>('animes?on_conflict=animefire_url', { method: 'POST', body: JSON.stringify({ animefire_url: animeUrl(anime.id), title: titleOf(anime), alternate_title: anime.titles?.US || anime.titles?.JP || null, type, poster: anime.poster_src || null, background: anime.backdrop_src || null, description: anime.synopsis || null, genres: anime.genres || [], release_year: anime.published_at ? Number(anime.published_at.slice(0, 4)) || null : null }) });
     const animeRow = rows[0] || (await db<Array<{ id: string }>>(`animes?select=id&animefire_url=eq.${encodeURIComponent(animeUrl(anime.id))}&limit=1`))[0];
     if (!animeRow) return;
-    for (const episode of episodes) await db('episodes?on_conflict=anime_id,season,episode', { method: 'POST', body: JSON.stringify({ anime_id: animeRow.id, season: Math.max(1, episode.season || 1), episode: Math.max(1, episode.number || 1), title: episode.title || `Episódio ${episode.number || 1}`, episode_url: episodeUrl(episode.id), streams: [] }) });
+    if (episodes.length) {
+      const rows = episodes
+        .filter((episode) => episode?.id)
+        .map((episode) => ({
+          anime_id: animeRow.id,
+          season: Math.max(1, episode.season || 1),
+          episode: Math.max(1, episode.number || 1),
+          title: episode.title || `Episódio ${episode.number || 1}`,
+          episode_url: episodeUrl(episode.id),
+          streams: [],
+        }));
+      if (rows.length) {
+        await db('episodes?on_conflict=anime_id,season,episode', {
+          method: 'POST',
+          body: JSON.stringify(rows),
+        });
+      }
+    }
   } catch (error) { console.warn('[cache anime]', error); }
 }
 
