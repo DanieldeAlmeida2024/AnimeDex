@@ -260,6 +260,78 @@ function extractApiItems(payload) {
 }
 
 
+
+function titleCandidates(item) {
+  const titles = item?.titles && typeof item.titles === 'object' ? Object.values(item.titles) : [];
+  return [...new Set(titles.filter(value => typeof value === 'string' && value.trim()))];
+}
+
+function animeTitleCandidates(anime) {
+  const titles = anime?.titles && typeof anime.titles === 'object' ? Object.values(anime.titles) : [];
+  return [...new Set(titles.filter(value => typeof value === 'string' && value.trim()))];
+}
+
+function isEpisodeHomeItem(item) {
+  return Number.isFinite(Number(item?.season)) || Number.isFinite(Number(item?.number)) || Boolean(item?.episodeId);
+}
+
+async function resolveHomeItem(item) {
+  if (!item?.id) return null;
+
+  try {
+    const payload = await fetchAnimeApi(`/episode/${encodeURIComponent(item.id)}`);
+    const episode = payload?.data;
+    const anime = episode?.anime;
+    if (!anime?.id) throw new Error('episódio sem anime relacionado');
+
+    return {
+      ...anime,
+      episodeId: episode.id,
+      season: episode.season,
+      number: episode.number,
+      audio: episode.audio,
+      episodeTitle: episode.title,
+    };
+  } catch (episodeError) {
+    try {
+      // Algumas entradas da home podem apontar para um recurso de anime
+      // em vez de um episódio. Valida o ID antes de aceitar o item.
+      const animePayload = await fetchAnimeApi(`/anime/${encodeURIComponent(item.id)}`);
+      const anime = animePayload?.data?.hero;
+      if (anime?.id) return anime;
+    } catch (_) {}
+
+    const queryTitle = titleCandidates(item)[0];
+    if (queryTitle) {
+      try {
+        const searchPayload = await fetchAnimeApi(`/animes/pesquisar?q=${encodeURIComponent(queryTitle)}&page=1`);
+        const candidates = extractApiItems(searchPayload);
+        const targetTitles = titleCandidates(item).map(normalizeTitle).filter(Boolean);
+
+        const exact = candidates.find(candidate =>
+          animeTitleCandidates(candidate)
+            .map(normalizeTitle)
+            .some(title => targetTitles.includes(title))
+        );
+        if (exact?.id) return exact;
+      } catch (_) {}
+    }
+
+    if (isEpisodeHomeItem(item)) {
+      console.warn(`[home-catalog] descartando episódio sem anime resolvido ${item.id}: ${episodeError.message}`);
+      return null;
+    }
+
+    if (item.titles || item.poster_src || item.name) {
+      console.warn(`[home-catalog] preservando item de anime ${item.id}: ${episodeError.message}`);
+      return item;
+    }
+
+    console.warn(`[home-catalog] ignorando item ${item.id}: ${episodeError.message}`);
+    return null;
+  }
+}
+
 async function resolveHomeCatalogItems(items) {
   const source = Array.isArray(items) ? items : [];
   const results = new Array(source.length);
@@ -270,34 +342,7 @@ async function resolveHomeCatalogItems(items) {
     while (true) {
       const index = nextIndex++;
       if (index >= source.length) return;
-
-      const item = source[index];
-      if (!item?.id) continue;
-
-      try {
-        const payload = await fetchAnimeApi(`/episode/${encodeURIComponent(item.id)}`);
-        const episode = payload?.data;
-        const anime = episode?.anime;
-        if (!anime?.id) throw new Error('episódio sem anime relacionado');
-
-        results[index] = {
-          ...anime,
-          episodeId: episode.id,
-          season: episode.season,
-          number: episode.number,
-          audio: episode.audio,
-          episodeTitle: episode.title,
-        };
-      } catch (error) {
-        // O fallback Puppeteer pode produzir itens de anime diretamente.
-        // Nesse caso, preserva o item em vez de descartar o catálogo inteiro.
-        if (item.titles || item.poster_src || item.name) {
-          results[index] = item;
-          console.warn(`[home-catalog] não foi possível resolver episódio ${item.id}: ${error.message}; preservando item`);
-        } else {
-          console.warn(`[home-catalog] ignorando episódio ${item.id}: ${error.message}`);
-        }
-      }
+      results[index] = await resolveHomeItem(source[index]);
     }
   }
 
