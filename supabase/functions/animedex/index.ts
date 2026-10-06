@@ -126,9 +126,23 @@ function toStremioStreams(streams: Array<{ url: string; audio?: string; qualitie
 }
 
 function unwrapCatalog(payload: any): ApiAnime[] {
-  const data = payload?.data;
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.animes)) return data.animes;
+  const candidates = [
+    payload?.data,
+    payload?.data?.animes,
+    payload?.data?.items,
+    payload?.data?.results,
+    payload?.results,
+    payload?.items,
+    payload?.animes,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      const valid = candidate.filter((item) => item && (item.id || item.titles || item.name));
+      if (valid.length) return valid;
+    }
+  }
+
   return [];
 }
 
