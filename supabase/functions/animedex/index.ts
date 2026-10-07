@@ -222,6 +222,14 @@ async function expandStreamQualities(streams: SourceStream[]) {
   for (const stream of streams) {
     const variants = await resolveHlsVariants(stream);
 
+    // Compatibilidade: o master vem primeiro porque é a URL que
+    // já era reproduzida pelos clientes antigos/TV Boxes.
+    expanded.push({
+      ...stream,
+      resolvedQuality: 'Auto',
+      resolvedUrl: stream.url,
+    });
+
     for (const variant of variants) {
       expanded.push({
         ...stream,
@@ -229,14 +237,6 @@ async function expandStreamQualities(streams: SourceStream[]) {
         resolvedUrl: variant.url,
       });
     }
-
-    // Compatibilidade: mantém sempre a playlist master original.
-    // Alguns clientes/TV Boxes são mais restritivos com playlists HLS filhas.
-    expanded.push({
-      ...stream,
-      resolvedQuality: 'Auto',
-      resolvedUrl: stream.url,
-    });
   }
 
   return expanded;
@@ -248,15 +248,13 @@ function toStremioStreams(streams: Array<SourceStream & { resolvedQuality?: stri
     const audio = item.audio || 'AnimeFire';
 
     return {
-      // Mantém o formato simples usado antes da seleção de qualidade.
       name: quality === 'Auto' ? `AnimeFire ${audio}`.trim() : `AnimeFire ${audio} • ${quality}`,
       title: quality === 'Auto' ? audio : quality,
-      description: quality === 'Auto' ? audio : `${audio} • ${quality}`,
       quality: quality === 'Auto' ? undefined : quality,
       url: item.resolvedUrl || item.url,
       behaviorHints: {
         notWebReady: true,
-        bingeGroup: `animedex-animefire-${quality.toLowerCase()}`,
+        bingeGroup: 'animedex-animefire',
         proxyHeaders: {
           request: {
             Referer: 'https://animefire.one/',
@@ -594,12 +592,7 @@ async function stream(type: MediaType, rawId: string) {
     const cachedAt = cached[0]?.updated_at ? Date.parse(cached[0].updated_at) : 0;
     if (cached[0]?.streams?.length && Number.isFinite(cachedAt) && Date.now() - cachedAt < VIDEO_CACHE_TTL_MS) {
       const expanded = await expandStreamQualities(cached[0].streams);
-      return {
-        streams: toStremioStreams(expanded.slice(0, settings.maxStreams)),
-        cacheMaxAge: 300,
-        staleRevalidate: 1800,
-        staleError: 3600,
-      };
+      return { streams: toStremioStreams(expanded.slice(0, settings.maxStreams)) };
     }
   } catch (error) { console.warn('[cache stream read]', error); }
   const payload = await proxy<{ data: { streams?: Array<{ url: string; audio?: string; qualities?: string[] }> } }>(`/api/episode/${encodeURIComponent(id)}`);
@@ -608,12 +601,7 @@ async function stream(type: MediaType, rawId: string) {
     await db(`episodes?episode_url=eq.${encodeURIComponent(episodeUrl(id))}`, { method: 'PATCH', body: JSON.stringify({ streams: sourceStreams }) });
   } catch (error) { console.warn('[cache stream write]', error); }
   const expanded = await expandStreamQualities(sourceStreams);
-  return {
-    streams: toStremioStreams(expanded.slice(0, settings.maxStreams)),
-    cacheMaxAge: 300,
-    staleRevalidate: 1800,
-    staleError: 3600,
-  };
+  return { streams: toStremioStreams(expanded.slice(0, settings.maxStreams)) };
 }
 
 async function manifest() {
