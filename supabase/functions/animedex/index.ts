@@ -222,15 +222,6 @@ async function expandStreamQualities(streams: SourceStream[]) {
   for (const stream of streams) {
     const variants = await resolveHlsVariants(stream);
 
-    if (!variants.length) {
-      expanded.push({
-        ...stream,
-        resolvedQuality: stream.qualities?.[0] || 'Auto',
-        resolvedUrl: stream.url,
-      });
-      continue;
-    }
-
     for (const variant of variants) {
       expanded.push({
         ...stream,
@@ -238,29 +229,43 @@ async function expandStreamQualities(streams: SourceStream[]) {
         resolvedUrl: variant.url,
       });
     }
+
+    // Compatibilidade: mantém sempre a playlist master original.
+    // Alguns clientes/TV Boxes são mais restritivos com playlists HLS filhas.
+    expanded.push({
+      ...stream,
+      resolvedQuality: 'Auto',
+      resolvedUrl: stream.url,
+    });
   }
 
   return expanded;
 }
 
 function toStremioStreams(streams: Array<SourceStream & { resolvedQuality?: string; resolvedUrl?: string }>) {
-  return streams.map(item => ({
-    name: item.resolvedQuality || item.qualities?.[0] || 'Auto',
-    title: `AnimeFire ${item.audio || ''}`.trim(),
-    description: item.audio ? `${item.audio} • ${item.resolvedQuality || 'Auto'}` : (item.resolvedQuality || 'Auto'),
-    quality: item.resolvedQuality || item.qualities?.[0] || undefined,
-    url: item.resolvedUrl || item.url,
-    behaviorHints: {
-      notWebReady: true,
-      bingeGroup: `animedex-animefire-${item.resolvedQuality || 'auto'}`,
-      proxyHeaders: {
-        request: {
-          Referer: 'https://animefire.one/',
-          Origin: 'https://animefire.one',
+  return streams.map(item => {
+    const quality = item.resolvedQuality || 'Auto';
+    const audio = item.audio || 'AnimeFire';
+
+    return {
+      // Mantém o formato simples usado antes da seleção de qualidade.
+      name: quality === 'Auto' ? `AnimeFire ${audio}`.trim() : `AnimeFire ${audio} • ${quality}`,
+      title: quality === 'Auto' ? audio : quality,
+      description: quality === 'Auto' ? audio : `${audio} • ${quality}`,
+      quality: quality === 'Auto' ? undefined : quality,
+      url: item.resolvedUrl || item.url,
+      behaviorHints: {
+        notWebReady: true,
+        bingeGroup: `animedex-animefire-${quality.toLowerCase()}`,
+        proxyHeaders: {
+          request: {
+            Referer: 'https://animefire.one/',
+            Origin: 'https://animefire.one',
+          },
         },
       },
-    },
-  }));
+    };
+  });
 }
 
 function unwrapCatalog(payload: any): ApiAnime[] {
