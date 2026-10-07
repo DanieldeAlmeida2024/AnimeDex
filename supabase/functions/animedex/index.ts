@@ -121,8 +121,146 @@ async function cacheAnime(anime: ApiAnime, type: MediaType, episodes: ApiEpisode
   } catch (error) { console.warn('[cache anime]', error); }
 }
 
-function toStremioStreams(streams: Array<{ url: string; audio?: string; qualities?: string[] }>) {
-  return streams.map(item => ({ name: `AnimeFire ${item.audio || ''}`.trim(), title: item.audio || 'AnimeFire', quality: item.qualities?.join(', ') || undefined, url: item.url, behaviorHints: { notWebReady: true, bingeGroup: 'animedex-animefire', proxyHeaders: { request: { Referer: 'https://animefire.one/', Origin: 'https://animefire.one' } } } }));
+type SourceStream = {
+  url: string;
+  audio?: string;
+  qualities?: string[];
+};
+
+type HlsVariant = {
+  url: string;
+  quality: string;
+  bandwidth?: number;
+  resolution?: string;
+};
+
+function qualityFromResolution(resolution: string | undefined, bandwidth?: number) {
+  const height = Number(resolution?.split('x')[1] || 0);
+  if (height >= 1080) return '1080p';
+  if (height >= 720) return '720p';
+  if (height >= 540) return '540p';
+  if (height >= 360) return '480p';
+  if (height > 0) return `${height}p`;
+  if (bandwidth && bandwidth >= 5_000_000) return '1080p';
+  if (bandwidth && bandwidth >= 2_500_000) return '720p';
+  if (bandwidth && bandwidth >= 1_200_000) return '480p';
+  return 'Auto';
+}
+
+function parseHlsAttributeList(value: string) {
+  const attributes: Record<string, string> = {};
+  for (const match of value.matchAll(/([A-Z0-9-]+)=(?:"([^"]*)"|([^,]*))(?:,|$)/g)) {
+    attributes[match[1]] = match[2] ?? match[3] ?? '';
+  }
+  return attributes;
+}
+
+async function resolveHlsVariants(stream: SourceStream): Promise<HlsVariant[]> {
+  try {
+    const response = await fetch(stream.url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 AnimeDexEdge/1.0',
+        Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+        Referer: 'https://animefire.one/',
+        Origin: 'https://animefire.one',
+      },
+      signal: AbortSignal.timeout(7000),
+    });
+
+    if (!response.ok) return [];
+    const playlist = await response.text();
+    if (!/#EXT-X-STREAM-INF:/i.test(playlist)) return [];
+
+    const lines = playlist.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const variants: HlsVariant[] = [];
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (!line.startsWith('#EXT-X-STREAM-INF:')) continue;
+
+      const attrs = parseHlsAttributeList(line.slice('#EXT-X-STREAM-INF:'.length));
+      const uri = lines[index + 1];
+      if (!uri || uri.startsWith('#')) continue;
+
+      let absoluteUrl: string;
+      try {
+        absoluteUrl = new URL(uri, stream.url).toString();
+      } catch (_) {
+        continue;
+      }
+
+      const bandwidth = Number(attrs.BANDWIDTH || 0) || undefined;
+      const resolution = attrs.RESOLUTION || undefined;
+      const quality = qualityFromResolution(resolution, bandwidth);
+
+      variants.push({
+        url: absoluteUrl,
+        quality,
+        bandwidth,
+        resolution,
+      });
+    }
+
+    const seen = new Set<string>();
+    return variants
+      .filter((variant) => {
+        const key = variant.url + '|' + variant.quality;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => (b.bandwidth || 0) - (a.bandwidth || 0));
+  } catch (error) {
+    console.warn('[hls variants]', error);
+    return [];
+  }
+}
+
+async function expandStreamQualities(streams: SourceStream[]) {
+  const expanded: Array<SourceStream & { resolvedQuality?: string; resolvedUrl?: string }> = [];
+
+  for (const stream of streams) {
+    const variants = await resolveHlsVariants(stream);
+
+    if (!variants.length) {
+      expanded.push({
+        ...stream,
+        resolvedQuality: stream.qualities?.[0] || 'Auto',
+        resolvedUrl: stream.url,
+      });
+      continue;
+    }
+
+    for (const variant of variants) {
+      expanded.push({
+        ...stream,
+        resolvedQuality: variant.quality,
+        resolvedUrl: variant.url,
+      });
+    }
+  }
+
+  return expanded;
+}
+
+function toStremioStreams(streams: Array<SourceStream & { resolvedQuality?: string; resolvedUrl?: string }>) {
+  return streams.map(item => ({
+    name: item.resolvedQuality || item.qualities?.[0] || 'Auto',
+    title: `AnimeFire ${item.audio || ''}`.trim(),
+    description: item.audio ? `${item.audio} • ${item.resolvedQuality || 'Auto'}` : (item.resolvedQuality || 'Auto'),
+    quality: item.resolvedQuality || item.qualities?.[0] || undefined,
+    url: item.resolvedUrl || item.url,
+    behaviorHints: {
+      notWebReady: true,
+      bingeGroup: `animedex-animefire-${item.resolvedQuality || 'auto'}`,
+      proxyHeaders: {
+        request: {
+          Referer: 'https://animefire.one/',
+          Origin: 'https://animefire.one',
+        },
+      },
+    },
+  }));
 }
 
 function unwrapCatalog(payload: any): ApiAnime[] {
@@ -447,10 +585,16 @@ async function stream(type: MediaType, rawId: string) {
     if (!id) throw new Error('Filme sem episódio/stream disponível');
   }
   try {
-    const cached = await db<Array<{ streams: Array<{ url: string; audio?: string; qualities?: string[] }>; updated_at: string }>>(`episodes?select=streams,updated_at&episode_url=eq.${encodeURIComponent(episodeUrl(id))}&limit=1`);
+    const cached = await db<Array<{ streams: SourceStream[]; updated_at: string }>>(`episodes?select=streams,updated_at&episode_url=eq.${encodeURIComponent(episodeUrl(id))}&limit=1`);
     const cachedAt = cached[0]?.updated_at ? Date.parse(cached[0].updated_at) : 0;
     if (cached[0]?.streams?.length && Number.isFinite(cachedAt) && Date.now() - cachedAt < VIDEO_CACHE_TTL_MS) {
-      return { streams: toStremioStreams(cached[0].streams) };
+      const expanded = await expandStreamQualities(cached[0].streams);
+      return {
+        streams: toStremioStreams(expanded.slice(0, settings.maxStreams)),
+        cacheMaxAge: 300,
+        staleRevalidate: 1800,
+        staleError: 3600,
+      };
     }
   } catch (error) { console.warn('[cache stream read]', error); }
   const payload = await proxy<{ data: { streams?: Array<{ url: string; audio?: string; qualities?: string[] }> } }>(`/api/episode/${encodeURIComponent(id)}`);
@@ -458,8 +602,12 @@ async function stream(type: MediaType, rawId: string) {
   try {
     await db(`episodes?episode_url=eq.${encodeURIComponent(episodeUrl(id))}`, { method: 'PATCH', body: JSON.stringify({ streams: sourceStreams }) });
   } catch (error) { console.warn('[cache stream write]', error); }
+  const expanded = await expandStreamQualities(sourceStreams);
   return {
-    streams: toStremioStreams(sourceStreams),
+    streams: toStremioStreams(expanded.slice(0, settings.maxStreams)),
+    cacheMaxAge: 300,
+    staleRevalidate: 1800,
+    staleError: 3600,
   };
 }
 
