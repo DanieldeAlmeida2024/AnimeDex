@@ -1,5 +1,26 @@
 # AnimeDex
 
+Addon Stremio de catálogo de animes com Supabase/Deno e worker opcional de scraping.
+
+## Tecnologias e organização
+Deno, Supabase, PostgreSQL; Node/Prisma legado. Código e configurações principais: `supabase/, scraper-worker/, src/`.
+
+## Começar
+Consulte supabase/ e configure variáveis de ambiente para as Edge Functions.
+
+**Validação nativa:** `Validar manifest/catalog/meta/stream em ambiente de teste.`. Não afirmar sucesso sem executar o procedimento com as dependências necessárias.
+
+## Cuidados
+Não considerar fontes de streaming e scraping garantidas; respeitar direitos autorais e termos das fontes.
+
+**Documentação técnica:** [Requisitos](docs/REQUISITOS.md) · [Arquitetura](docs/ARQUITETURA.md) · [UML](docs/UML.puml) · [Plano de testes](docs/PLANO_TESTES.md) · [Guia para IA](AGENTS.md).
+
+---
+
+## Conteúdo anterior do repositório (preservado)
+
+# AnimeDex
+
 Addon para o Stremio com catálogo e streams de animes. A implantação recomendada agora usa **Supabase Edge Functions + Supabase Postgres**, sem Node.js, Prisma, SQLite ou Cheerio no caminho de produção.
 
 ## Arquitetura atual
