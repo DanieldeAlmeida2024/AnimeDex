@@ -21,3 +21,8 @@ Versão MAJOR quando contrato/entidades mudarem; MINOR para novos fluxos; PATCH 
 | ANI-CI | `.github/workflows/legacy-routing-ci.yml` | 1.1.0 | Gate de build, Prisma, roteamento e documentação |
 
 Dependência de publicação: PR documental v1.0.0 deve ser integrado antes da correção v1.1.0 (PR empilhado). **Não é release nem produção validada**. Não remove `dist/` nem `prisma/dev.db`; higiene do versionamento e investigação de dados históricos são uma etapa separada.
+
+### ANI-BUILD v1.1.1 — ajuste de CI proposto, 11/11/2026
+
+- `tsconfig.json`: `skipLibCheck` apenas para tipagens transitivas `parse5/entities`; `strict` preservado.
+- Evidência: CI do primeiro commit falhou em TS7016; `npm ci` exibiu 33 alertas (3 críticos). Reexecutar CI no novo SHA; não anunciar release.

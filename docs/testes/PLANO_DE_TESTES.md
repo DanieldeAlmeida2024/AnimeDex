@@ -31,3 +31,9 @@ Usar uma cópia descartável do banco SQLite e stubs de AniList/TMDB/scraper. N�
 `tests/stream-routing.test.cjs` contém 16 casos determinísticos do contrato de IDs, dispatch dos adaptadores e propagação de falha. O teste isolado foi executado localmente com TypeScript 5.8.3, Node.js 22.16.0 e `tsc --target es2020 --module commonjs --strict --rootDir src --outDir dist src/utils/stream-routing.ts`: **16/16 PASS** em 11/11/2026. Isso NÃO equivale ao build total do projeto nem testa scraping/Prisma/SDK.
 
 O workflow `.github/workflows/legacy-routing-ci.yml` acrescenta `npm ci`, `npx prisma generate`, `npm run build`, 16 testes e testes documentais em pull request. Estado do workflow: **pendente de execução/validação no GitHub** até obter o run no SHA exato. Não publicar nem mesclar sem revisar logs e check runs. O caminho Supabase/Deno, os provedores externos e os cenários de segurança ANI-T08..T13 continuam pendentes de E2E e não são cobertos pelo teste unitário.
+
+### CI de compilação — bloqueio transitivo registrado em 11/11/2026
+
+A execução do workflow no commit `2b361fbb` falhou em `npm run build` com **TS7016** dentro de `node_modules/parse5/dist/tokenizer/index.d.ts`, na importação `entities/decode`. Foi ajustado `tsconfig.json` para `skipLibCheck: true`, mantendo `strict: true` e sem suprimir a checagem de fontes `src/`. A correção depende de nova execução do GitHub Actions no SHA atualizado; **não declarar build verde antes da confirmação**.
+
+O `npm ci` reportou **33 vulnerabilidades** no conjunto completo de dependências (3 baixas, 5 moderadas, 22 altas, 3 críticas). Isso não mede exposição explorável em produção; exige triagem separada por dependência, dependências de desenvolvimento vs. runtime, e análise do caminho Supabase/worker. Não executar automaticamente `npm audit fix --force` nem aceitar riscos sem justificação.

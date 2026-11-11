@@ -24,3 +24,7 @@ Há histórico de migrations em `prisma/migrations` e um arquivo `prisma/dev.db`
 - O campo `search` é declarado como string, mas o código usa `search?.search` numa condição; revisar tipagem e teste de filtro.
 - O método de persistência tem ramos de fallback AniList/TMDB/Google; não assumir cobertura ou cache correto sem testes de integração.
 - Os arquivos `dist/` e a base SQLite versionada exigem política clara para evitar divergência com `src/`.
+
+## Bloqueios descobertos pelo CI no fluxo legado — 11/11/2026
+
+A cadeia TypeScript/parse5/entities provoca TS7016 no build padrão. A checagem de tipos de arquivos de declaração de dependências foi desativada via `skipLibCheck`, mas `strict` continua habilitado para os arquivos da aplicação. Essa é uma medida de compatibilidade, **não** a atualização definitiva das dependências. `npm ci` registrou 33 alertas de vulnerabilidade no conjunto total instalado, incluindo 3 críticos. Deve existir triagem de dependências antes de considerar qualquer operação pública segura.
