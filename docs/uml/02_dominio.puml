@@ -1,0 +1,16 @@
+@startuml
+class Anime {
+ id: UUID
+ imdbId: String?
+ animefireUrl: String <<unique>>
+ stremioId: String <<unique>>
+ title: String
+ type: String
+ episodesData: JSON string?
+ lastSearchedAt: DateTime
+}
+class SearchLog { id: Int; imdbId: String; searchAt: DateTime }
+class "Stremio Manifest" as Manifest { id; version; resources; types; catalogs }
+Manifest ..> Anime : catalog/meta/stream
+SearchLog ..> Anime : busca por imdbId
+@enduml

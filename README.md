@@ -185,3 +185,10 @@ npm run prisma:generate   # legado Prisma
 ## Autor
 
 [Daniel de Almeida](https://github.com/DanieldeAlmeida2024)
+
+## Documentação técnica v1.0.0
+
+- [Especificação do projeto](docs/projeto/ESPECIFICACAO.md)
+- [Diagramas UML separados](docs/uml/README.md)
+- [Casos de teste](docs/testes/PLANO_DE_TESTES.md)
+- [Versionamento](docs/controle/VERSIONAMENTO.md)
