@@ -11,7 +11,7 @@ Addon compatível com `stremio-addon-sdk`, expondo recursos `catalog`, `meta` e 
 
 **Metadata:** `defineMetaHandler` diferencia IDs do formato IMDb `tt123...` de IDs internos e chama `animeFireMetaHeadler` apenas para os internos, conforme código.
 
-**Streams:** `defineStreamHandler` consulta serviços de scraping AnimeFire ou torrent; trata exceções com rejeição. No snapshot há a condição `isImdbIdOnly && isStremioImdbEpisodeId`: as expressões regulares têm formatos mutuamente exclusivos, então essa ramificação **não é alcançável**. Requer correção e testes próprios; documentação não a resolve.
+**Streams (ANI-SR v1.1.0 proposta):** no snapshot v1.0.0 a condição `isImdbIdOnly && isStremioImdbEpisodeId` era impossível. A correção em revisão delega a `src/utils/stream-routing.ts`: IDs `tt` seguidos de dígitos, com ou sem sufixo `:temporada:episódio`, acionam `scraperTorrentsStreams`; IDs internos continuam usando `scraperAnimeFireStreams`. O dispatcher usa adaptadores injetados para testar a seleção e a propagação de erros sem tocar em banco/rede. Não há mudança no caminho de produção Supabase/Deno; execução end-to-end do addon legado ainda depende de infraestrutura e fontes reais.
 
 ## Persistência e dados
 `prisma/schema.prisma` usa SQLite com `file:./dev.db`; `Anime` possui `id`, `imdbId?`, `animefireUrl` e `stremioId` únicos, `title`, `type`, imagens, gêneros, `episodesData`, datas de criação/alteração/última busca e `secoundName` (grafia real do schema). `SearchLog` contém ID, IMDb ID e data de busca.

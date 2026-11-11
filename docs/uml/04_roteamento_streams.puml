@@ -1,0 +1,24 @@
+@startuml
+title AnimeDex — roteamento de streams por tipo de ID (ANI-SR v1.1.0 proposta)
+actor "Stremio" as Client
+participant "src/main.ts\nStreamHandler" as Handler
+participant "utils/stream-routing.ts" as Router
+participant "scraperStream.ts\nIMDb" as Imdb
+participant "scraperAnimeFireStream.ts\nID interno" as AnimeFire
+
+Client -> Handler : stream(id, type, season?, episode?)
+Handler -> Router : dispatchStream(id, adapters)
+alt ID tt<digitos> ou tt<digitos>:temporada:episódio
+  Router -> Imdb : scraperTorrentsStreams(streams, id, type, season, episode)
+  Imdb --> Router : { streams }
+else ID interno ou ID não reconhecido como IMDb
+  Router -> AnimeFire : scraperAnimeFireStreams(streams, id, type, season, episode)
+  AnimeFire --> Router : { streams }
+end
+Router --> Handler : Resultado do adaptador selecionado
+Handler --> Client : { streams }
+note over Handler,AnimeFire
+Testes ANI-T06/07 usam adaptadores simulados.
+Não comprovam rede, scraping, licença ou acesso a torrents.
+end note
+@enduml
