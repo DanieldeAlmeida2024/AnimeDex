@@ -1,0 +1,10 @@
+@startuml
+title AnimeDex - visao conceitual
+actor Usuario
+component Entrada
+component Aplicacao
+component Integracao
+Usuario --> Entrada
+Entrada --> Aplicacao
+Aplicacao --> Integracao
+@enduml
