@@ -37,3 +37,22 @@ O workflow `.github/workflows/legacy-routing-ci.yml` acrescenta `npm ci`, `npx p
 A execução do workflow no commit `2b361fbb` falhou em `npm run build` com **TS7016** dentro de `node_modules/parse5/dist/tokenizer/index.d.ts`, na importação `entities/decode`. Foi ajustado `tsconfig.json` para `skipLibCheck: true`, mantendo `strict: true` e sem suprimir a checagem de fontes `src/`. A correção depende de nova execução do GitHub Actions no SHA atualizado; **não declarar build verde antes da confirmação**.
 
 O `npm ci` reportou **33 vulnerabilidades** no conjunto completo de dependências (3 baixas, 5 moderadas, 22 altas, 3 críticas). Isso não mede exposição explorável em produção; exige triagem separada por dependência, dependências de desenvolvimento vs. runtime, e análise do caminho Supabase/worker. Não executar automaticamente `npm audit fix --force` nem aceitar riscos sem justificação.
+
+## ANI-WRK v2.0.0 — suíte de segurança do worker (PR em preparação)
+
+| IDs | Natureza | Verificações |
+|---|---|---|
+| ANI-W01 | Unitário | Bearer forte e exato; tokens alterados/incorretos recusados |
+| ANI-W02 | Unitário | `http`, localhost, metadata IP, porta extra, URL com userinfo, hostname falso e IPv6 recusados |
+| ANI-W03 | Unitário | URLs HTTPS em allowlist estrita permitidas |
+| ANI-W04 | Unitário | Redirecionamento relativo com `redirect: manual` |
+| ANI-W05..W06 | Unitário | Redirects para metadata IP e hosts externos bloqueados antes do segundo fetch |
+| ANI-W07..W08 | Unitário | Loop ou Location ausente provocam erro explícito |
+| ANI-W09 | Estático | Edge Function sem IP de fallback e com token e `redirect: error` |
+| ANI-W10 | HTTP local | Health 200 sem token, stats/render 401, stats 200 com token, token errado 401 |
+
+**Evidência inicial:** CI [#43125363802](https://github.com/DanieldeAlmeida2024/AnimeDex/actions/runs/43125363802) no commit `ac8b87c14f42`, com `npm ci --prefix scraper-worker`, checagem de sintaxe e **21/21 testes PASS**. Este resultado é do commit anterior à documentação e exige CI novamente no SHA final do PR.
+
+**Auditoria runtime do worker:** `npm audit --prefix scraper-worker --omit=dev` no mesmo run registrou **14 alertas (2 moderados, 12 altos, 0 críticos)**. Separar dos 33 alertas da raiz do addon legado; não significa correção nem exposição comprovada. Evidência JSON no artifact `worker-npm-audit` (retenção 7 dias). 
+
+**Pendentes:** regressão funcional HTTPS Supabase-worker, egress/DNS, rate-limit, hardening Chromium sandbox, revisão das dependências, integração com proxy TLS e teste remoto autorizado. O workflow não visita fornecedores reais nem consome conteúdo licenciado. Sem deploy.

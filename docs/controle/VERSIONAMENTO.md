@@ -26,3 +26,16 @@ Dependência de publicação: PR documental v1.0.0 deve ser integrado antes da c
 
 - `tsconfig.json`: `skipLibCheck` apenas para tipagens transitivas `parse5/entities`; `strict` preservado.
 - Evidência: CI do primeiro commit falhou em TS7016; `npm ci` exibiu 33 alertas (3 críticos). Reexecutar CI no novo SHA; não anunciar release.
+
+## ANI-WRK v2.0.0 — proposta de mudança incompatível, 11/11/2026
+
+| ID | Local | Responsabilidade |
+|---|---|---|
+| ANI-WRK-API | `scraper-worker/server.js` | Exigir Bearer nas rotas privadas; health mínimo |
+| ANI-WRK-POL | `scraper-worker/security-policy.cjs` | Verificar token, URLs HTTPS, redirects |
+| ANI-WRK-EDGE | `supabase/functions/animedex/index.ts` | Sem IP hardcoded, segredo interno, rejeitar redirects de proxy |
+| ANI-WRK-OPS | `scraper-worker/docker-compose.yml`, `.env.example`, README, ORACLE-CLOUD | Bind loopback e migração TLS explícita |
+| ANI-WRK-TST | `scraper-worker/test/*.test.cjs`, `.github/workflows/worker-security-ci.yml` | 21 testes e inventário de auditoria |
+| ANI-WRK-UML | `docs/uml/05_seguranca_scraper_worker.puml` | Sequência editável do fluxo protegido |
+
+PR empilhado **após #20** (que depende de #19); merge/deploy bloqueados até CI do head exato, integração staged e revisão de egress/Chromium. O run inicial da suíte 21/21 passou no commit `ac8b87c14f42`; inventário npm reportou 14 alertas no worker (12 altos, 2 moderados). Issue #21 continua aberta. **Nenhuma release é declarada.**
