@@ -1,3 +1,5 @@
+> **IMPORTANTE — ANI-SEC-W v0.1.0 proposta:** requer `BROWSER_SCRAPER_TOKEN` forte e HTTPS remoto; nenhuma alteração será implantada automaticamente. [Projeto e riscos](../docs/security/WORKER_AUTH_V1.md) · [Testes](../docs/testes/WORKER_SECURITY_TESTS.md).
+
 # AnimeDex Browser Scraper Worker
 
 Worker opcional para páginas que só funcionam corretamente com DOM renderizado ou exigem um navegador real.
@@ -13,7 +15,7 @@ Ele mantém as dependências do fluxo original:
 ```bash
 cd scraper-worker
 npm install
-ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 CACHE_TTL_MS=1800000 npm start
+BROWSER_SCRAPER_TOKEN=<TOKEN_GERADO_EM_AMBIENTE_PRIVADO> ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 CACHE_TTL_MS=1800000 npm start
 ```
 
 Endpoint:
@@ -63,7 +65,7 @@ A Edge Function tenta primeiro o Puppeteer quando `BROWSER_SCRAPER_URL` está co
 ## Segurança
 
 - O worker aceita apenas o hostname de `ANIMEFIRE_BASE_URL`.
-- Não exponha esse endpoint sem autenticação ou rate limit em produção.
+- Requer token em toda rota não-health; adicionar também rate limit por IP e concorrência no reverse proxy.
 - Use HTTPS, firewall/rede privada e um token interno se o worker ficar público.
 - O worker não deve receber URLs arbitrárias de usuários.
 - Puppeteer não deve ser executado dentro da Edge Function Supabase; ele fica neste processo separado por causa das limitações do runtime Edge.

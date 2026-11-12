@@ -1,6 +1,7 @@
 import { catalogs, getCatalog, settings, type MediaType } from './config.ts';
+import { configureWorker } from './worker-connection.ts';
 
-const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || 'http://163.176.133.210:8787').replace(/\/$/, '');
+const WORKER = configureWorker(Deno.env.get('BROWSER_SCRAPER_URL'), Deno.env.get('BROWSER_SCRAPER_TOKEN'));
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const VIDEO_CACHE_TTL_MS = 5 * 60 * 60 * 1000;
@@ -48,7 +49,11 @@ async function proxy<T>(path: string): Promise<T> {
   try {
     // Home/carrosséis podem levar mais que o timeout curto usado pelos endpoints leves da API.
     const timeoutMs = path.startsWith('/api/home/') ? 45_000 : 10_000;
-    const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!WORKER) throw new Error('Worker não configurado');
+    const response = await fetch(`${WORKER.baseUrl}${path}`, {
+      headers: { Authorization: `Bearer ${WORKER.token}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (response.ok) return await response.json() as T;
     throw new Error(`Worker AnimeFire HTTP ${response.status}`);
   } catch (workerError) {
@@ -606,10 +611,12 @@ async function stream(type: MediaType, rawId: string) {
 
 async function manifest() {
   let dynamicCatalogs: Array<{ id: string; name: string; type: MediaType }> = [];
-  try {
-    const response = await fetch(`${PROXY}/api/home/catalogs`, { signal: AbortSignal.timeout(15000) });
-    if (response.ok) dynamicCatalogs = ((await response.json()) as { data?: Array<{ id: string; name: string; type: MediaType }> }).data || [];
-  } catch (error) { console.warn('[manifest] carrosséis dinâmicos indisponíveis:', error); }
+  if (WORKER) {
+    try {
+      const result = await proxy<{ data?: Array<{ id: string; name: string; type: MediaType }> }>('/api/home/catalogs');
+      dynamicCatalogs = Array.isArray(result.data) ? result.data : [];
+    } catch (error) { console.warn('[manifest] carrosséis dinâmicos indisponíveis:', error); }
+  }
   const manifestCatalogs = [...catalogs, ...dynamicCatalogs.filter(dynamic => !catalogs.some(catalog => catalog.id === dynamic.id))];
   return {
     id: settings.addonId,

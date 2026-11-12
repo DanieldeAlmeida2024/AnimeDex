@@ -1,0 +1,27 @@
+@startuml
+title AnimeDex — fluxo Edge/Worker autenticado (ANI-SEC-W v0.1.0 proposta)
+actor "Cliente Stremio" as C
+participant "Edge Function" as E
+participant "WorkerConnection" as V
+participant "Reverse proxy HTTPS" as P
+participant "Worker Express" as W
+participant "Fonte HTTPS autorizada" as S
+C -> E : GET /catalog ou /meta
+E -> V : validar URL + token (secrets)
+alt Worker não configurado
+  V --> E : null
+  E -> S : fallback público controlado
+else Worker configurado
+  V --> E : origin HTTPS, token
+  E -> P : GET /api/... + Bearer token
+  P -> W : encaminhar Authorization
+  alt token inválido
+    W --> E : 401
+  else token válido
+    W -> S : HTTPS; validar host/redirect
+    S --> W : conteúdo
+    W --> E : JSON
+  end
+end
+E --> C : resposta sem credenciais
+@enduml

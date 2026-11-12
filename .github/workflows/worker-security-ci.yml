@@ -1,0 +1,33 @@
+name: AnimeDex - segurança do scraper worker
+on:
+  pull_request:
+  push:
+    branches: [main, fix/worker-internal-auth-and-url-guards-20261111]
+permissions:
+  contents: read
+jobs:
+  worker-security:
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scraper-worker/package-lock.json
+      - name: Instalar dependências do worker
+        run: npm ci --prefix scraper-worker
+      - name: Verificar JavaScript e testes de segurança
+        run: |
+          node --check scraper-worker/server.js
+          node --check scraper-worker/security.js
+          node --test scraper-worker/test/security.test.cjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Verificar código Deno Edge
+        run: deno check supabase/functions/animedex/index.ts
+      - name: Testar configuração segura do Edge
+        run: deno test supabase/functions/animedex/worker-connection_test.ts

@@ -1,6 +1,7 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+const { createWorkerAuth, assertAllowedSourceUrl, fetchWithAllowedRedirects } = require('./security.js');
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -83,11 +84,17 @@ function getBrowser() {
 }
 
 function assertAllowed(rawUrl) {
-  const url = new URL(rawUrl);
-  if (!['http:', 'https:'].includes(url.protocol) || !allowedHosts.has(url.hostname)) {
-    throw new Error('host não permitido');
-  }
-  return url;
+  return assertAllowedSourceUrl(rawUrl, allowedHosts);
+}
+async function installRequestGuard(page) {
+  await page.setRequestInterception(true);
+  page.on('request', request => {
+    try {
+      if (['image', 'font', 'media'].includes(request.resourceType())) return request.abort();
+      assertAllowedSourceUrl(request.url(), new Set([...allowedHosts, 'api.animefire.one']));
+      return request.continue();
+    } catch { return request.abort(); }
+  });
 }
 
 async function render(rawUrl) {
@@ -96,12 +103,7 @@ async function render(rawUrl) {
   const page = await browser.newPage();
   try {
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexBrowserWorker/1.0');
-    await page.setRequestInterception(true);
-    page.on('request', request => {
-      const resource = request.resourceType();
-      if (['image', 'font', 'media'].includes(resource)) request.abort();
-      else request.continue();
-    });
+    await installRequestGuard(page);
     let navigationError;
     let timer;
     try {
@@ -131,14 +133,13 @@ async function render(rawUrl) {
 
 async function fetchRenderedHtml(rawUrl) {
   const url = assertAllowed(rawUrl);
-  const response = await fetch(url, {
-    redirect: 'follow',
+  const response = await fetchWithAllowedRedirects(url.toString(), {
     headers: {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexWorker/1.0',
       Accept: 'text/html,application/xhtml+xml',
     },
     signal: AbortSignal.timeout(Math.min(timeoutMs, 15000)),
-  });
+  }, allowedHosts);
   if (!response.ok) throw new Error(`HTTP ${response.status} em fetch direto`);
   const html = await response.text();
   if (html.length < 100 || /cf-chl-|challenge-platform|just a moment/i.test(html)) throw new Error('resposta exige navegador');
@@ -201,6 +202,7 @@ async function fetchHomeCatalogs() {
     const apiResponses = [];
     try {
       await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexHomeWorker/1.0');
+      await installRequestGuard(page);
       page.on('response', async response => {
         if (!response.url().includes('api.animefire.one')) return;
         try {
@@ -366,10 +368,12 @@ function labelFromApiUrl(rawUrl, index) {
   return `AnimeFire ${index + 1}`;
 }
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker', cacheTtlMs, cacheEntries: cache.size }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker' }));
+// Bloqueia todas as rotas não-health; segredo inválido impede o startup.
+app.use(createWorkerAuth(process.env.BROWSER_SCRAPER_TOKEN));
 app.get('/api/cache/stats', (_req, res) => {
   clearExpiredCache();
-  res.json({ ttlMs: cacheTtlMs, maxEntries: cacheMaxEntries, entries: cache.size, keys: [...cache.keys()] });
+  res.json({ ttlMs: cacheTtlMs, maxEntries: cacheMaxEntries, entries: cache.size });
 });
 app.get('/api/catalog', async (req, res) => {
   try {
