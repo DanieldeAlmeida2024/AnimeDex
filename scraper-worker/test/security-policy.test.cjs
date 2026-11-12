@@ -82,7 +82,15 @@ test('ANI-W09 Edge Function sem IP público embutido e com bearer + redirect:err
   const path=require('node:path');
   const code=fs.readFileSync(path.join(__dirname,'../../supabase/functions/animedex/index.ts'),'utf8');
   assert.ok(!code.includes('163.176.133.210'));
+  // Contract changed: Edge imports one strict validator for both call paths.
+  const policy=fs.readFileSync(path.join(__dirname,'../../supabase/functions/animedex/worker-connection.ts'),'utf8');
+  assert.match(code, /import \{ configureWorker \} from '\.\/worker-connection\.ts'/);
+  assert.match(code, /configureWorker\(/);
   assert.match(code, /BROWSER_SCRAPER_TOKEN/);
-  assert.match(code, /workerRequestHeaders\(\)/);
-  assert.match(code, /redirect: 'error'/);
+  assert.equal((code.match(/WORKER\.baseUrl/g)||[]).length,2, 'proxy e manifesto devem usar a mesma origin');
+  assert.equal((code.match(/WORKER\.token/g)||[]).length,2, 'proxy e manifesto devem enviar o mesmo bearer');
+  assert.equal((code.match(/redirect: 'error'/g)||[]).length,2, 'ambos os caminhos recusam redirects');
+  assert.ok(!code.includes('workerRequestHeaders()'), 'nenhuma validação paralela legada deve permanecer');
+  assert.match(policy, /url\.pathname !== '\/'/);
+  assert.match(policy, /url\.username/);
 });

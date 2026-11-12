@@ -39,3 +39,26 @@ Dependência de publicação: PR documental v1.0.0 deve ser integrado antes da c
 | ANI-WRK-UML | `docs/uml/05_seguranca_scraper_worker.puml` | Sequência editável do fluxo protegido |
 
 PR empilhado **após #20** (que depende de #19); merge/deploy bloqueados até CI do head exato, integração staged e revisão de egress/Chromium. O run inicial da suíte 21/21 passou no commit `ac8b87c14f42`; inventário npm reportou 14 alertas no worker (12 altos, 2 moderados). Issue #21 continua aberta. **Nenhuma release é declarada.**
+
+## ANI-DEPS v2.0.1 — atualização do grafo de dependências (proposta, 11/11/2026)
+
+| ID | Arquivo | Mudança | Evidência |
+|---|---|---|---|
+| ANI-DEPS-PKG | `scraper-worker/package.json` | Fixar Puppeteer em 25.17.0 | CI de geração #43126336020 |
+| ANI-DEPS-LOCK | `scraper-worker/package-lock.json` | Regenerar transições e dependências transitivas | 0 alertas `npm audit --omit=dev` no teste de preparação |
+| ANI-DEPS-CI | `.github/workflows/worker-security-ci.yml` | Falhar se `npm audit` indisponível ou houver findings | A verificar no head final |
+| ANI-DEPS-SEC | `docs/seguranca/AUDITORIA_DEPENDENCIAS_WORKER.md` | Baseline 14 → proposta 0; riscos residuais e evidência | `ANI-W11..W15` |
+
+Versão documental de proposta. **Não é release nem permite deploy**. Não abrange os 33 alertas npm da raiz. Teste Chromium real, sandbox, egress e compatibilidade permanecem gates.
+
+## ANI-EDGE v2.2.0 proposta — 12/11/2026
+
+| ID | Artefato | Revisão |
+|---|---|---|
+| ANI-EDGE-CFG | `supabase/functions/animedex/worker-connection.ts` | Configuração URL/token forte, origin HTTPS, ausência de userinfo/path/query/hash, HTTP somente loopback |
+| ANI-EDGE-RUN | `supabase/functions/animedex/index.ts` | Usa configuração única em `proxy` e `manifest`, com `redirect: error`; tipagem opcional de `episodeId` |
+| ANI-EDGE-TST | `supabase/functions/animedex/worker-connection_test.ts` | Dez cenários Deno de URL e token, sem redes externas |
+| ANI-EDGE-CI | `.github/workflows/worker-security-ci.yml` | `deno check` + `deno test` agregados aos 21 testes Node e ao gate de auditoria npm |
+| ANI-EDGE-DOC | `docs/seguranca/INTEGRACAO_EDGE_WORKER.md`, `docs/testes/EDGE_WORKER_DENO.md`, `docs/uml/06_edge_worker_config.puml` | Contrato próprio, matriz e sequência UML |
+
+**Consolidação:** o PR #23 continha solução concorrente sobre `main`. A cobertura Deno e a validação de configuração foram transportadas para o PR #24, que depende de #22 e #20 e inclui upgrade auditado de Puppeteer; não mesclar duas implementações sobrepostas sem reconciliação. Estado do CI depende do HEAD exato. Nenhum deploy/merge realizado; produção segue bloqueada por TLS, egress/DNS e Chromium real.

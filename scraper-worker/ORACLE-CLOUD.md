@@ -26,7 +26,7 @@ sudo systemctl enable --now docker
 
 ```bash
 cd ~/AnimeDex/scraper-worker
-docker compose config
+### Não execute `docker compose config` em logs compartilhados: pode imprimir SCRAPER_WORKER_TOKEN.
 docker compose up -d --build
 docker compose ps
 curl --fail http://127.0.0.1:8787/health
@@ -39,3 +39,5 @@ Use um processo seguro de teste para o header Bearer, sem imprimir segredo. Um e
 ## Pendências de segurança e operação
 
 O navegador usa `--no-sandbox`; redes outbound/DNS e taxa de requisições ainda carecem de limites; dependências devem passar por triagem. Não tratar policy URL de aplicação como firewall de rede. Nenhuma alteração nesta documentação autoriza deploy em VM de produção.
+
+**Imutabilidade do lock:** a imagem proposta usa `npm ci --omit=dev` e o lockfile versionado; atualizar a imagem somente após CI e staging confirmados.

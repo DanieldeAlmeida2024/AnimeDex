@@ -1,0 +1,43 @@
+@startuml
+title AnimeDex — Edge Function / Worker: validação centralizada (ANI-EDGE v2.2.0)
+actor "Cliente Stremio" as User
+participant "Supabase Edge (Deno)" as Edge
+participant "configureWorker()" as Configure
+participant "scraper-worker Node" as Worker
+participant "AnimeFire API leve" as LightApi
+
+Edge -> Configure : env BROWSER_SCRAPER_URL + TOKEN
+alt Variáveis ausentes
+  Configure --> Edge : null
+else Par incompleto, HTTP público, URL com path/credenciais
+  Configure --> Edge : erro de configuração
+else HTTPS origin + token forte
+  Configure --> Edge : {baseUrl, token}
+end
+
+User -> Edge : manifest / catalog / metadata
+alt Worker configurado
+  Edge -> Worker : GET /api/..., Authorization: Bearer
+  note over Edge,Worker : redirect: error; TLS depende da implantação
+  alt HTTP 2xx
+    Worker --> Edge : JSON estruturado
+  else erro/indisponibilidade
+    Worker --> Edge : erro
+    opt API leve para operações previstas
+      Edge -> LightApi : HTTPS (fallback permitido)
+      LightApi --> Edge : JSON
+    end
+  end
+else Worker ausente
+  opt API leve permitida
+    Edge -> LightApi : HTTPS
+    LightApi --> Edge : JSON
+  end
+end
+Edge --> User : resposta/erro do catálogo
+
+note over Worker,LightApi
+Whitelist de host, URL e redirects no Node.
+DNS/egress real e browser sandbox ainda precisam de testes.
+end note
+@enduml
