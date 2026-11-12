@@ -25,3 +25,7 @@ A checagem de host **não garante proteção integral contra SSRF** sem DNS/egre
 ## Compatibilidade
 
 Esta alteração é **breaking**: clientes legados sem token recebem 401, e a URL de worker ausente deixa de usar IP público implicitamente. Enquanto o worker estiver indisponível, a Edge ainda pode tentar fallback para API direta em alguns endpoints, conforme `proxy()`; o catálogo home depende do worker. Não liberar o PR até integrar consumidor e serviço juntos e verificar os 401/200 em staging. O código de scraping e a legalidade das fontes de mídia não são validados por esta mudança.
+
+## Grafo de dependências (ANI-DEPS v2.0.1 proposta)
+
+O baseline do npm no worker mostrou 14 findings (12 altos, 2 moderados) e foi criado um commit isolado de atualização para `puppeteer@25.17.0` e lockfile. O teste de preparação [#43126336020](https://github.com/DanieldeAlmeida2024/AnimeDex/actions/runs/43126336020) registrou 21 testes PASS e **zero findings** no runtime worker. A imagem passou a instalar dependências de forma determinística com `npm ci`. A triagem e os riscos residuais estão em [AUDITORIA_DEPENDENCIAS_WORKER.md](../seguranca/AUDITORIA_DEPENDENCIAS_WORKER.md). A atualização major Puppeteer não elimina a necessidade de testar Chromium real, sandbox/egress e compatibilidade de páginas. Os 33 findings da raiz do projeto são uma investigação separada.

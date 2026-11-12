@@ -34,3 +34,9 @@ O `docker-compose.yml` mapeia `127.0.0.1:8787` do host. Para acesso remoto, colo
 Por padrão, `CACHE_TTL_MS=1800000` e `CACHE_MAX_ENTRIES=500`. O cache em memória é invalidado por TTL/restart e deduplica requisições simultâneas. A rota de estatísticas fica autenticada. Redirects e URLs usados por `/render` exigem HTTPS e host da allowlist, no máximo 3 saltos.
 
 **Isso não é garantia de segurança para internet pública**: Chromium ainda executa com `--no-sandbox`, e faltam isolamento de egress/DNS, rate limiting/concurrency, triagem de dependências e teste E2E HTTPS. Veja [contrato do worker](../docs/projeto/SECURITY_WORKER.md), [plano de testes](../docs/testes/PLANO_DE_TESTES.md), [UML](../docs/uml/05_seguranca_scraper_worker.puml) e [runbook Oracle](ORACLE-CLOUD.md).
+
+## Dependências reproduzíveis — ANI-DEPS v2.0.1 (proposta)
+
+O runtime do worker foi atualizado para `puppeteer@25.17.0` e lockfile regenerado. `Dockerfile` usa `npm ci --omit=dev` em vez de `npm install`, evitando resolver versões diferentes durante a imagem. [Plano de auditoria versionado](../docs/seguranca/AUDITORIA_DEPENDENCIAS_WORKER.md): baseline 14 findings, teste de atualização [#43126336020](https://github.com/DanieldeAlmeida2024/AnimeDex/actions/runs/43126336020) com 0 findings no `npm audit --omit=dev`, e gate de CI que volta a falhar diante de novos findings.
+
+**Limites da validação:** teste de Node e política HTTP não executa Chromium, usa `--ignore-scripts` no ensaio de dependências e não substitui um build Docker com download/lançamento real do browser. Revisão humana e staging são obrigatórios antes de publicar.
