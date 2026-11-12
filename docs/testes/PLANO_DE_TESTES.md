@@ -56,3 +56,15 @@ O `npm ci` reportou **33 vulnerabilidades** no conjunto completo de dependência
 **Auditoria runtime do worker:** `npm audit --prefix scraper-worker --omit=dev` no mesmo run registrou **14 alertas (2 moderados, 12 altos, 0 críticos)**. Separar dos 33 alertas da raiz do addon legado; não significa correção nem exposição comprovada. Evidência JSON no artifact `worker-npm-audit` (retenção 7 dias). 
 
 **Pendentes:** regressão funcional HTTPS Supabase-worker, egress/DNS, rate-limit, hardening Chromium sandbox, revisão das dependências, integração com proxy TLS e teste remoto autorizado. O workflow não visita fornecedores reais nem consome conteúdo licenciado. Sem deploy.
+
+## ANI-DEPS v2.0.1 — validação de dependências corrigidas
+
+| ID | Cenário | Exigência |
+|---|---|---|
+| ANI-W11 | `npm ci --prefix scraper-worker` após atualização do lock | Instalável sem inconsistência de versões |
+| ANI-W12 | `npm audit --prefix scraper-worker --omit=dev --json` | Zero vulnerabilidades reportadas; CI deve falhar se o inventário não puder ser gerado |
+| ANI-W13 | `node --test scraper-worker/test/*.test.cjs` com Puppeteer 25.17.0 instalado | 21 regressões de policy/HTTP passam |
+| ANI-W14 | Navegação Chromium real em container seguro (staging) | Ainda pendente; não é testada pelo CI |
+| ANI-W15 | Edge Function HTTPS + Bearer contra worker real | Ainda pendente; sem deploy automático |
+
+[Detalhamento da auditoria e correções](../seguranca/AUDITORIA_DEPENDENCIAS_WORKER.md). No run de preparação [#43126336020](https://github.com/DanieldeAlmeida2024/AnimeDex/actions/runs/43126336020) houve **21/21 PASS e 0 alertas npm do runtime do worker**. Exigir nova evidência no SHA final após o PR. Os 33 alertas da raiz continuam em triagem.
