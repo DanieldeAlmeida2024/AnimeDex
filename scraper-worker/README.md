@@ -1,69 +1,36 @@
-# AnimeDex Browser Scraper Worker
+# AnimeDex — Browser Scraper Worker
 
-Worker opcional para páginas que só funcionam corretamente com DOM renderizado ou exigem um navegador real.
+Worker opcional Express/Puppeteer/Cheerio do AnimeDex. Processa catálogos, detalhes e HTML renderizado. **Não deve ficar diretamente acessível na internet.**
 
-Ele mantém as dependências do fluxo original:
-
-- **Puppeteer** para JavaScript, redirecionamentos e DOM renderizado;
-- **Cheerio** para normalizar o HTML renderizado;
-- Express para expor uma API interna pequena.
-
-## Execução
+## Inicialização local — ANI-WRK v2.0.0 (proposta)
 
 ```bash
 cd scraper-worker
-npm install
-ANIMEFIRE_BASE_URL=https://animefire.one PORT=8787 CACHE_TTL_MS=1800000 npm start
+cp .env.example .env
+# Gere um segredo aleatório (32 bytes = 64 caracteres hex):
+openssl rand -hex 32
+# Edite .env localmente e preencha SCRAPER_WORKER_TOKEN.
+docker compose up -d --build
+curl http://127.0.0.1:8787/health
+curl -i http://127.0.0.1:8787/api/cache/stats # 401 sem token
 ```
 
-Endpoint:
+`SCRAPER_WORKER_TOKEN` é obrigatório e deve possuir pelo menos 32 bytes. Nunca comitar `.env` nem publicar valor do token em logs ou issues. Use `curl -H "Authorization: Bearer $SCRAPER_WORKER_TOKEN" http://127.0.0.1:8787/api/cache/stats` apenas em terminal privado.
 
-```text
-GET /health
-GET /api/cache/stats
-GET /render?url=https%3A%2F%2Fanimefire.one%2F...
-```
+## Endpoints e acesso
 
-## Cache temporário
+- `GET /health`: público, resposta mínima `ok`/serviço.
+- `GET /api/cache/stats`, `/api/catalog`, `/api/home/catalogs`, `/api/home/catalog/:id`, `/api/anime/:id`, `/api/episode/:id`, `/render?url=...`: exigem `Authorization: Bearer` com segredo compartilhado.
+- Sem token ou token incorreto: HTTP 401, antes de consultar cache, chamar fontes ou iniciar renderização.
 
-O worker mantém em memória, por padrão durante **30 minutos**, as respostas de:
+## Supabase Edge e transporte
 
-- catálogos e paginação;
-- buscas;
-- detalhes de animes e filmes;
-- detalhes de episódios e streams;
-- carrosséis da página inicial;
-- HTML de páginas renderizadas pelo Puppeteer.
+Use secrets `BROWSER_SCRAPER_URL=https://DOMINIO-DO-WORKER` e `BROWSER_SCRAPER_TOKEN` (mesmo segredo do worker). A Edge Function encaminha o bearer apenas ao worker; não passa o segredo ao Stremio. O endereço HTTP público antigo deixou de ser utilizado como fallback automático. A Edge Function exige HTTPS externo; HTTP é aceito só para loopback de desenvolvimento.
 
-O cache é por processo: ele é limpo quando o container é reiniciado. Solicitações
-iguais feitas simultaneamente compartilham a mesma promessa, evitando scrapers
-duplicados quando o Stremio dispara várias requisições ao mesmo tempo.
+O `docker-compose.yml` mapeia `127.0.0.1:8787` do host. Para acesso remoto, coloque um reverse proxy TLS na VM, com acesso por loopback ao serviço local. Não libere diretamente 8787 no firewall/NSG.
 
-As opções podem ser alteradas no `.env` ou no `docker-compose.yml`:
+## Cache e riscos restantes
 
-```dotenv
-CACHE_TTL_MS=1800000
-CACHE_MAX_ENTRIES=500
-```
+Por padrão, `CACHE_TTL_MS=1800000` e `CACHE_MAX_ENTRIES=500`. O cache em memória é invalidado por TTL/restart e deduplica requisições simultâneas. A rota de estatísticas fica autenticada. Redirects e URLs usados por `/render` exigem HTTPS e host da allowlist, no máximo 3 saltos.
 
-Após o TTL, a próxima solicitação daquela URL/consulta atualiza o valor no
-servidor. O endpoint `/health` informa o TTL e a quantidade de entradas atuais;
-`/api/cache/stats` informa também o limite configurado.
-
-## Ligação com a Edge Function
-
-Publique o worker em uma rede privada/VPS/container que a Edge Function consiga acessar e configure:
-
-```bash
-supabase secrets set BROWSER_SCRAPER_URL=https://SEU-WORKER.example.com
-```
-
-A Edge Function tenta primeiro o Puppeteer quando `BROWSER_SCRAPER_URL` está configurado. Se o worker estiver indisponível, faz fallback para `fetch` direto e mantém o comportamento leve.
-
-## Segurança
-
-- O worker aceita apenas o hostname de `ANIMEFIRE_BASE_URL`.
-- Não exponha esse endpoint sem autenticação ou rate limit em produção.
-- Use HTTPS, firewall/rede privada e um token interno se o worker ficar público.
-- O worker não deve receber URLs arbitrárias de usuários.
-- Puppeteer não deve ser executado dentro da Edge Function Supabase; ele fica neste processo separado por causa das limitações do runtime Edge.
+**Isso não é garantia de segurança para internet pública**: Chromium ainda executa com `--no-sandbox`, e faltam isolamento de egress/DNS, rate limiting/concurrency, triagem de dependências e teste E2E HTTPS. Veja [contrato do worker](../docs/projeto/SECURITY_WORKER.md), [plano de testes](../docs/testes/PLANO_DE_TESTES.md), [UML](../docs/uml/05_seguranca_scraper_worker.puml) e [runbook Oracle](ORACLE-CLOUD.md).

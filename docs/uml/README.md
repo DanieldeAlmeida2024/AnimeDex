@@ -5,3 +5,5 @@
 Diagramas editáveis: [01_componentes](01_componentes.puml) · [02_dominio](02_dominio.puml) · [03_fluxo_catalogo](03_fluxo_catalogo.puml). Eles são verificáveis contra módulos e contratos citados nos documentos.
 
 **Proposta ANI-SR v1.1.0:** [04_roteamento_streams](04_roteamento_streams.puml) descreve o dispatcher unitariamente testado, sem representar execução E2E dos scrapers.
+
+**ANI-WRK v2.0.0 — proposta:** [05_seguranca_scraper_worker](05_seguranca_scraper_worker.puml), sequência do token Edge→Worker e validação de URLs; não atesta TLS/egress de produção.

@@ -28,3 +28,7 @@ Há histórico de migrations em `prisma/migrations` e um arquivo `prisma/dev.db`
 ## Bloqueios descobertos pelo CI no fluxo legado — 11/11/2026
 
 A cadeia TypeScript/parse5/entities provoca TS7016 no build padrão. A checagem de tipos de arquivos de declaração de dependências foi desativada via `skipLibCheck`, mas `strict` continua habilitado para os arquivos da aplicação. Essa é uma medida de compatibilidade, **não** a atualização definitiva das dependências. `npm ci` registrou 33 alertas de vulnerabilidade no conjunto total instalado, incluindo 3 críticos. Deve existir triagem de dependências antes de considerar qualquer operação pública segura.
+
+## ANI-WRK v2.0.0 — contrato de segurança do worker (proposta)
+
+O scraper-worker antes aceitava `/render` e `/api/*` sem autenticação e a configuração Docker mapeava HTTP 8787 para todas as interfaces. A proposta implementa Bearer interno com segredo forte, allowlist HTTPS para URLs e redirecionamentos, bloqueio de solicitações externas via Puppeteer, remoção do IP padrão no consumidor Deno e porta Docker vinculada a loopback. É uma **alteração incompatível** com consumidores sem token: ver [especificação própria](SECURITY_WORKER.md). Não libera produção; permanecem Chromium sem sandbox, egress, abuso de recursos e vulnerabilidades npm.

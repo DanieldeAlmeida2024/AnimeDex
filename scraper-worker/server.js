@@ -1,11 +1,17 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+const { verifyBearer, assertAllowedUrl, fetchWithAllowedRedirects } = require('./security-policy.cjs');
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const configuredHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
 const allowedHosts = new Set([configuredHost, 'animefire.plus', 'animefire.io', 'animefire.one']);
+const outboundHosts = new Set([...allowedHosts, 'api.animefire.one']);
+const workerToken = process.env.SCRAPER_WORKER_TOKEN;
+if (!workerToken || Buffer.byteLength(workerToken, 'utf8') < 32) {
+  throw new Error('SCRAPER_WORKER_TOKEN obrigatório com pelo menos 32 bytes; worker não iniciado');
+}
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS || 60000);
 const cacheTtlMs = Number(process.env.CACHE_TTL_MS || 30 * 60 * 1000);
 const cacheMaxEntries = Math.max(20, Number(process.env.CACHE_MAX_ENTRIES || 500));
@@ -83,11 +89,20 @@ function getBrowser() {
 }
 
 function assertAllowed(rawUrl) {
-  const url = new URL(rawUrl);
-  if (!['http:', 'https:'].includes(url.protocol) || !allowedHosts.has(url.hostname)) {
-    throw new Error('host não permitido');
-  }
-  return url;
+  return assertAllowedUrl(rawUrl, allowedHosts);
+}
+
+async function protectPageRequests(page) {
+  await page.setRequestInterception(true);
+  page.on('request', request => {
+    try {
+      if (['image', 'font', 'media'].includes(request.resourceType())) return request.abort();
+      assertAllowedUrl(request.url(), outboundHosts);
+      return request.continue();
+    } catch (_) {
+      return request.abort();
+    }
+  });
 }
 
 async function render(rawUrl) {
@@ -96,12 +111,7 @@ async function render(rawUrl) {
   const page = await browser.newPage();
   try {
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexBrowserWorker/1.0');
-    await page.setRequestInterception(true);
-    page.on('request', request => {
-      const resource = request.resourceType();
-      if (['image', 'font', 'media'].includes(resource)) request.abort();
-      else request.continue();
-    });
+    await protectPageRequests(page);
     let navigationError;
     let timer;
     try {
@@ -118,6 +128,7 @@ async function render(rawUrl) {
       if (timer) clearTimeout(timer);
     }
     if (navigationError) throw navigationError;
+    assertAllowed(page.url());
     await new Promise(resolve => setTimeout(resolve, 2000));
     const html = await page.content();
     const $ = cheerio.load(html);
@@ -131,14 +142,13 @@ async function render(rawUrl) {
 
 async function fetchRenderedHtml(rawUrl) {
   const url = assertAllowed(rawUrl);
-  const response = await fetch(url, {
-    redirect: 'follow',
+  const response = await fetchWithAllowedRedirects(url.toString(), {
     headers: {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexWorker/1.0',
       Accept: 'text/html,application/xhtml+xml',
     },
     signal: AbortSignal.timeout(Math.min(timeoutMs, 15000)),
-  });
+  }, allowedHosts);
   if (!response.ok) throw new Error(`HTTP ${response.status} em fetch direto`);
   const html = await response.text();
   if (html.length < 100 || /cf-chl-|challenge-platform|just a moment/i.test(html)) throw new Error('resposta exige navegador');
@@ -149,7 +159,7 @@ async function fetchRenderedHtml(rawUrl) {
 
 async function fetchAnimeApi(path) {
   return cached(cacheKey('api', path), async () => {
-    const response = await fetch(`${apiBase}${path}`, {
+    const response = await fetchWithAllowedRedirects(`${apiBase}${path}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 AnimeDexWorker/1.0',
         Accept: 'application/json',
@@ -157,7 +167,7 @@ async function fetchAnimeApi(path) {
         Origin: 'https://animefire.one',
       },
       signal: AbortSignal.timeout(Math.min(timeoutMs, 20000)),
-    });
+    }, outboundHosts);
     if (!response.ok) throw new Error(`AnimeFire API HTTP ${response.status}`);
     return await response.json();
   });
@@ -166,7 +176,7 @@ async function fetchAnimeApi(path) {
 async function fetchHomeCatalogs() {
   return cached(cacheKey('home', 'catalogs'), async () => {
     try {
-      const response = await fetch(`${apiBase}/home`, {
+      const response = await fetchWithAllowedRedirects(`${apiBase}/home`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 AnimeDexHomeWorker/1.0',
           Accept: 'application/json',
@@ -174,7 +184,7 @@ async function fetchHomeCatalogs() {
           Origin: 'https://animefire.one',
         },
         signal: AbortSignal.timeout(Math.min(timeoutMs, 20000)),
-      });
+      }, outboundHosts);
       if (!response.ok) throw new Error(`AnimeFire home API HTTP ${response.status}`);
       const payload = await response.json();
       const carousels = Array.isArray(payload?.data?.carousels) ? payload.data.carousels : [];
@@ -201,6 +211,7 @@ async function fetchHomeCatalogs() {
     const apiResponses = [];
     try {
       await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexHomeWorker/1.0');
+      await protectPageRequests(page);
       page.on('response', async response => {
         if (!response.url().includes('api.animefire.one')) return;
         try {
@@ -366,7 +377,13 @@ function labelFromApiUrl(rawUrl, index) {
   return `AnimeFire ${index + 1}`;
 }
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker', cacheTtlMs, cacheEntries: cache.size }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker' }));
+app.use((req, res, next) => {
+  if (!verifyBearer(req.get('authorization'), workerToken)) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  next();
+});
 app.get('/api/cache/stats', (_req, res) => {
   clearExpiredCache();
   res.json({ ttlMs: cacheTtlMs, maxEntries: cacheMaxEntries, entries: cache.size, keys: [...cache.keys()] });
