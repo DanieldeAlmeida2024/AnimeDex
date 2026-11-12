@@ -1,0 +1,35 @@
+@startuml
+title AnimeDex ANI-WRK 2.0.0 (proposta) — Edge e worker
+actor "Cliente Stremio" as Stremio
+participant "Supabase Edge" as Edge
+participant "Proxy HTTPS" as Proxy
+participant "Express Worker" as Worker
+participant "security-policy.cjs" as Policy
+participant "Puppeteer / API" as Source
+
+Stremio -> Edge : Catalog / Meta / Stream
+Edge -> Edge : secrets BROWSER_SCRAPER_URL + TOKEN
+Edge -> Proxy : GET /api/* + Bearer (HTTPS)
+Proxy -> Worker : GET /api/* + Bearer
+Worker -> Policy : verifyBearer()
+alt ausente ou incorreto
+  Policy --> Worker : false
+  Worker --> Proxy : HTTP 401
+else token válido
+  Policy --> Worker : true
+  Worker -> Policy : assertAllowedUrl() / redirects
+  alt URL ou redirect proibidos
+    Policy --> Worker : erro
+    Worker --> Proxy : falha (sem fetch ao host negado)
+  else destino permitido
+    Worker -> Source : fetch/Puppeteer interceptado
+    Source --> Worker : JSON ou HTML
+    Worker --> Proxy : HTTP 200
+  end
+end
+Proxy --> Edge : status e corpo
+Edge --> Stremio : resposta ou fallback aplicável
+note over Worker,Source
+TLS, egress e hardening Chromium ainda são gates.
+end note
+@enduml
