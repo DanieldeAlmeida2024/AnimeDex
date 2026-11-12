@@ -1,6 +1,17 @@
 import { catalogs, getCatalog, settings, type MediaType } from './config.ts';
 
-const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || 'http://163.176.133.210:8787').replace(/\/$/, '');
+const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || '').replace(/\/$/, '');
+const WORKER_TOKEN = Deno.env.get('BROWSER_SCRAPER_TOKEN') || '';
+
+function workerRequestHeaders(): HeadersInit {
+  if (!PROXY || WORKER_TOKEN.length < 32) throw new Error('Worker não configurado com URL e token');
+  const origin = new URL(PROXY);
+  const localDev = origin.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname);
+  if ((origin.protocol !== 'https:' && !localDev) || origin.username || origin.password || origin.search || origin.hash) {
+    throw new Error('Worker deve usar HTTPS (HTTP apenas em localhost) e origem sem credenciais');
+  }
+  return { Authorization: `Bearer ${WORKER_TOKEN}` };
+}
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const VIDEO_CACHE_TTL_MS = 5 * 60 * 60 * 1000;
@@ -48,7 +59,11 @@ async function proxy<T>(path: string): Promise<T> {
   try {
     // Home/carrosséis podem levar mais que o timeout curto usado pelos endpoints leves da API.
     const timeoutMs = path.startsWith('/api/home/') ? 45_000 : 10_000;
-    const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+    const response = await fetch(`${PROXY}${path}`, {
+      headers: workerRequestHeaders(),
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (response.ok) return await response.json() as T;
     throw new Error(`Worker AnimeFire HTTP ${response.status}`);
   } catch (workerError) {
@@ -607,7 +622,12 @@ async function stream(type: MediaType, rawId: string) {
 async function manifest() {
   let dynamicCatalogs: Array<{ id: string; name: string; type: MediaType }> = [];
   try {
-    const response = await fetch(`${PROXY}/api/home/catalogs`, { signal: AbortSignal.timeout(15000) });
+    if (!PROXY) throw new Error('Worker não configurado');
+    const response = await fetch(`${PROXY}/api/home/catalogs`, {
+      headers: workerRequestHeaders(),
+      redirect: 'error',
+      signal: AbortSignal.timeout(15000),
+    });
     if (response.ok) dynamicCatalogs = ((await response.json()) as { data?: Array<{ id: string; name: string; type: MediaType }> }).data || [];
   } catch (error) { console.warn('[manifest] carrosséis dinâmicos indisponíveis:', error); }
   const manifestCatalogs = [...catalogs, ...dynamicCatalogs.filter(dynamic => !catalogs.some(catalog => catalog.id === dynamic.id))];

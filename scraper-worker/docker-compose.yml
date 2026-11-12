@@ -9,8 +9,9 @@ services:
       BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-60000}
       CACHE_TTL_MS: ${CACHE_TTL_MS:-1800000}
       CACHE_MAX_ENTRIES: ${CACHE_MAX_ENTRIES:-500}
+      SCRAPER_WORKER_TOKEN: ${SCRAPER_WORKER_TOKEN:?Configure SCRAPER_WORKER_TOKEN em .env (minimo 32 bytes)}
     ports:
-      - "8787:8787"
+      - "127.0.0.1:8787:8787"
     networks:
       - animedex
 
