@@ -68,3 +68,7 @@ O `npm ci` reportou **33 vulnerabilidades** no conjunto completo de dependência
 | ANI-W15 | Edge Function HTTPS + Bearer contra worker real | Ainda pendente; sem deploy automático |
 
 [Detalhamento da auditoria e correções](../seguranca/AUDITORIA_DEPENDENCIAS_WORKER.md). No run de preparação [#43126336020](https://github.com/DanieldeAlmeida2024/AnimeDex/actions/runs/43126336020) houve **21/21 PASS e 0 alertas npm do runtime do worker**. Exigir nova evidência no SHA final após o PR. Os 33 alertas da raiz continuam em triagem.
+
+## ANI-EDGE v2.2.0 proposta — testes Deno por contrato
+
+Incorporados os testes de configuração da função Edge: `worker-connection_test.ts` contém **dez cenários** de URL e token (ANI-EDGE-01..10), e `.github/workflows/worker-security-ci.yml` agora executa `deno check` da Edge Function e `deno test` junto aos 21 testes do worker Node e auditoria runtime npm. [Matriz detalhada](EDGE_WORKER_DENO.md). **Esses testes não executam o browser real nem provam segurança da rede/DNS do container.**

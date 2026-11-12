@@ -192,3 +192,7 @@ npm run prisma:generate   # legado Prisma
 - [Diagramas UML separados](docs/uml/README.md)
 - [Casos de teste](docs/testes/PLANO_DE_TESTES.md)
 - [Versionamento](docs/controle/VERSIONAMENTO.md)
+
+### Verificação do canal Edge → scraper-worker (proposta ANI-EDGE v2.2.0)
+
+O contrato `BROWSER_SCRAPER_URL` + `BROWSER_SCRAPER_TOKEN` da função Supabase Edge é validado por um módulo próprio com dez testes Deno e checagem TypeScript em CI. O worker Node usa `SCRAPER_WORKER_TOKEN` (valor igual ao token Edge quando configurado) e mantém a política própria de destinos/redirects. A origem deve ser HTTPS; HTTP só em loopback de laboratório. [Contrato de integração](docs/seguranca/INTEGRACAO_EDGE_WORKER.md), [plano Deno](docs/testes/EDGE_WORKER_DENO.md), [UML](docs/uml/06_edge_worker_config.puml). Ainda não há validação E2E de TLS, DNS/egress e Chromium em staging; não realizar deploy antes dessas verificações.
