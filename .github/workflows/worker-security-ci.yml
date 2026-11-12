@@ -32,6 +32,14 @@ jobs:
           node --check scraper-worker/server.js
       - name: Testes de política, redirect e HTTP local
         run: node --test scraper-worker/test/*.test.cjs
+      - name: Instalar Deno 2 para validação Edge
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Validar TypeScript Supabase Edge
+        run: deno check supabase/functions/animedex/index.ts
+      - name: Executar casos Edge de configuração de worker sem rede
+        run: deno test supabase/functions/animedex/worker-connection_test.ts
       - name: Inventário runtime npm audit (reportar, não ignorar)
         shell: bash
         run: |
