@@ -1,0 +1,41 @@
+name: AnimeDex - worker dependency lock preview
+
+on:
+  push:
+    branches: [chore/worker-dependency-upgrade-20261111]
+
+permissions:
+  contents: read
+
+jobs:
+  lock-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scraper-worker/package-lock.json
+      - name: Atualizar Puppeteer e lock em ambiente descartável
+        working-directory: scraper-worker
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+        run: |
+          npm install puppeteer@25.17.0 --save-exact --package-lock-only --ignore-scripts
+          npm audit fix --package-lock-only --ignore-scripts || true
+          npm ci --ignore-scripts
+          node --check server.js
+          node --test test/*.test.cjs
+          npm audit --omit=dev --json > ../worker-upgrade-audit.json || true
+          node -e "const a=require('../worker-upgrade-audit.json'); console.log('AUDIT_UPGRADE_COUNTS',JSON.stringify(a.metadata?.vulnerabilities||{}))"
+      - name: Emitir lock e pacote como base64 para transferência autenticada de Git objects
+        working-directory: scraper-worker
+        shell: bash
+        run: |
+          echo ANIMEDEX_PACKAGE_BEGIN
+          base64 -w 0 package.json | fold -w 4096
+          echo ANIMEDEX_PACKAGE_END
+          echo ANIMEDEX_LOCK_BEGIN
+          base64 -w 0 package-lock.json | fold -w 4096
+          echo ANIMEDEX_LOCK_END
