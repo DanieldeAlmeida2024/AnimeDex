@@ -1,0 +1,45 @@
+name: AnimeDex - segurança do scraper-worker
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - fix/worker-auth-ssrf-20261111
+
+permissions:
+  contents: read
+
+jobs:
+  worker-security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scraper-worker/package-lock.json
+      - name: Instalar dependências do worker
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+        run: npm ci --prefix scraper-worker
+      - name: Validar sintaxe
+        run: |
+          node --check scraper-worker/security-policy.cjs
+          node --check scraper-worker/server.js
+      - name: Testes de política, redirect e HTTP local
+        run: node --test scraper-worker/test/*.test.cjs
+      - name: Inventário runtime npm audit (reportar, não ignorar)
+        shell: bash
+        run: |
+          npm audit --prefix scraper-worker --omit=dev --json > worker-audit.json || true
+          node -e "const fs=require('fs'); const raw=fs.readFileSync('worker-audit.json','utf8'); if (!raw.trim()) process.exit(1); const a=JSON.parse(raw); if(!a.metadata?.vulnerabilities) process.exit(1); console.log('Vulnerabilidades reportadas (não corrigidas):',JSON.stringify(a.metadata.vulnerabilities));"
+      - name: Preservar inventário audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-npm-audit
+          path: worker-audit.json
+          retention-days: 7
