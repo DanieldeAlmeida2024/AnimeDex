@@ -13,6 +13,8 @@ const headers = {
 
 type ApiAnime = {
   id: string;
+  /** Id do episódio opcional, vindo do fluxo de carrosséis da home. */
+  episodeId?: string;
   titles?: Record<string, string>;
   audio?: string;
   poster_src?: string;

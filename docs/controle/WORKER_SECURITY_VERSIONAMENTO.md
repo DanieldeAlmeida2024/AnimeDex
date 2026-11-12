@@ -8,3 +8,7 @@
 - CI: `.github/workflows/worker-security-ci.yml`.
 - Portabilidade: o fluxo legacy Node e a Edge Function Deno usam o mesmo contrato bearer, mas sem deploy até E2E.
 - Riscos mantidos: issue #21 npm audit; Chromium sem sandbox; egress DNS, rate limit e testes de conteúdo/licenças.
+
+### Revisão proposta v0.1.1 — gate TypeScript
+
+Correção de tipagem de `ApiAnime.episodeId?: string`, erro TS2339 capturado pelo primeiro GitHub Actions #43126034882. Sem alteração funcional e sem `ts-ignore`; não alegar validação Deno antes do novo run no SHA atualizado.

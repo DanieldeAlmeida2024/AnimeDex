@@ -16,3 +16,7 @@ Automação proposta: `node --test scraper-worker/test/security.test.cjs`, `deno
 - I02: Puppeteer com CDN real, redirects, scripts de terceiros e limite de recursos.
 - I03: ausência de 8787 público, token não logado, proxy com rate limit e validação DNS/egress.
 - I04: compatibilidade de manifesto, busca, catálogo, metadata, streams e queda do worker.
+
+## Desvio encontrado no primeiro CI (11/11/2026)
+
+[Workflow #43126034882](https://github.com/DanieldeAlmeida2024/AnimeDex/actions/runs/43126034882): testes Node **8/8 PASS** e JavaScript sintaticamente válido, mas `deno check` falhou com dois TS2339 em `index.ts:450`: `ApiAnime` não declarava `episodeId`, já consumido no mapeamento do catálogo de home. Adicionado `episodeId?: string` à interface existente sem modificar o comportamento de runtime. **Executar novo CI e registrar resultado**; teste Deno estava skipped no primeiro run.
