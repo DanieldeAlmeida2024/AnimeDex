@@ -1,0 +1,20 @@
+@startuml
+actor Cliente
+participant "CatalogHandler" as C
+participant "animeFireHeadler" as H
+participant "scraper AnimeFire" as S
+participant "AniList/TMDB" as Ext
+database "SQLite / Prisma" as DB
+Cliente -> C : catalog(id,extra)
+C -> H : listar
+H -> S : extrair animes
+S --> H : candidatos
+loop para cada anime
+  H -> DB : localizar por URL
+  alt não existe
+    H -> Ext : enriquecer metadados
+    H -> DB : save/update anime
+  end
+end
+H --> Cliente : metas[]
+@enduml

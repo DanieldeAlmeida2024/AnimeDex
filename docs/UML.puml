@@ -1,10 +1,20 @@
 @startuml
-title AnimeDex - visao conceitual
-actor Usuario
-component Entrada
-component Aplicacao
-component Integracao
-Usuario --> Entrada
-Entrada --> Aplicacao
-Aplicacao --> Integracao
+actor "Cliente Stremio" as C
+component "addonBuilder / serveHTTP :7000" as SDK
+component "CatalogHandler" as CAT
+component "MetaHandler" as META
+component "StreamHandler" as STR
+component "AnimeFire / Nyaa / DarkMahou" as SRC
+component "AniList / TMDB" as EXT
+component "Persistence db.ts" as P
+database "Prisma / SQLite" as DB
+C --> SDK
+SDK --> CAT
+SDK --> META
+SDK --> STR
+CAT --> SRC
+CAT --> EXT
+CAT --> P
+STR --> SRC
+P --> DB
 @enduml
