@@ -170,3 +170,13 @@ npm run prisma:generate   # legado Prisma
 ## Autor
 
 [Daniel de Almeida](https://github.com/DanieldeAlmeida2024)
+
+## Proteção entre a Edge Function e o Browser Scraper
+
+O worker não deve receber chamadas HTTP públicas sem autenticação. Esta revisão remove o endereço HTTP/IP fixo da Edge Function e passa a exigir duas variáveis privadas: `BROWSER_SCRAPER_URL` (HTTPS válido em ambiente remoto) e `WORKER_API_TOKEN` (segredo compartilhado aleatório com pelo menos 32 caracteres). A Edge Function envia o token no header `Authorization: Bearer` ao consultar o worker; inclusive o manifesto usa o proxy autenticado.
+
+`scraper-worker/docker-compose.yml` expõe **somente `127.0.0.1:8787`** no host e exige o segredo no ambiente. A API rejeita acesso sem chave. Não coloque `WORKER_API_TOKEN` em JavaScript enviado ao navegador, nas URLs, nem em commits Git.
+
+**Mudança incompatível intencional:** um worker anteriormente acessível por HTTP na porta 8787 deixará de ser utilizado pela Edge Function até haver proxy HTTPS e token configurados em ambas as pontas. Não libere a porta pública para contornar o bloqueio.
+
+[Instruções de configuração e teste protegido](scraper-worker/ORACLE-CLOUD.md) · [Contrato de segurança](docs/seguranca/WORKER_EDGE_AUTH.md) · [Testes](docs/testes/WORKER_EDGE.md). Essa alteração não foi implantada na VM nem no Supabase.

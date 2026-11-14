@@ -67,3 +67,22 @@ A Edge Function tenta primeiro o Puppeteer quando `BROWSER_SCRAPER_URL` está co
 - Use HTTPS, firewall/rede privada e um token interno se o worker ficar público.
 - O worker não deve receber URLs arbitrárias de usuários.
 - Puppeteer não deve ser executado dentro da Edge Function Supabase; ele fica neste processo separado por causa das limitações do runtime Edge.
+
+## Execução protegida (padrão atual)
+
+A execução sem `WORKER_API_TOKEN` não fornece endpoints operacionais. Para laboratório local, copie `.env.example` para `.env`, configure um segredo forte de **32+ caracteres** e use:
+
+```bash
+cd scraper-worker
+cp .env.example .env
+# Edite o token no .env local, sem versioná-lo:
+docker compose config
+docker compose up --build -d
+curl --fail http://127.0.0.1:8787/health
+```
+
+`/health` é liberado somente para sondagem; `/api/*`, `/render` e estatísticas do cache exigem `Authorization: Bearer <token>`. A publicação Docker da porta é restrita ao loopback do host, não serve tráfego público. Para acesso remoto da Edge Function, instale proxy HTTPS que encaminhe ao loopback, **sem expor 8787 em Security Lists, firewall ou roteadores**.
+
+Configure `BROWSER_SCRAPER_URL` e o mesmo `WORKER_API_TOKEN` nos secrets da Edge Function. O código recusa URL remota não HTTPS e não segue redirecionamentos na requisição direta de HTML. Chromium/Puppeteer e redirecionamentos de navegador ainda exigem auditoria de isolamento antes de exposição pública.
+
+O procedimento de `npm start` fora de Docker requer as mesmas variáveis de ambiente. O exemplo antigo sem token é apenas histórico e não ativa o worker atual.

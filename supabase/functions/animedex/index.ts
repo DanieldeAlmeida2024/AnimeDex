@@ -1,6 +1,7 @@
 import { catalogs, getCatalog, settings, type MediaType } from './config.ts';
 
-const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || 'http://163.176.133.210:8787').replace(/\/$/, '');
+const PROXY = (Deno.env.get('BROWSER_SCRAPER_URL') || '').replace(/\/$/, '');
+const WORKER_API_TOKEN = Deno.env.get('WORKER_API_TOKEN') || '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const VIDEO_CACHE_TTL_MS = 5 * 60 * 60 * 1000;
@@ -12,6 +13,7 @@ const headers = {
 
 type ApiAnime = {
   id: string;
+  episodeId?: string;
   titles?: Record<string, string>;
   audio?: string;
   poster_src?: string;
@@ -46,9 +48,22 @@ function parseHomeEpisodeMetaId(rawId: string) {
 
 async function proxy<T>(path: string): Promise<T> {
   try {
+    if (!PROXY || WORKER_API_TOKEN.length < 32) {
+      throw new Error('Worker remoto não configurado com token forte');
+    }
+    const workerUrl = new URL(PROXY);
+    const local = ['localhost', '127.0.0.1'].includes(workerUrl.hostname);
+    if ((workerUrl.protocol !== 'https:' && !(local && workerUrl.protocol === 'http:')) ||
+        workerUrl.username || workerUrl.password) {
+      throw new Error('Worker remoto requer HTTPS e URL sem credenciais');
+    }
     // Home/carrosséis podem levar mais que o timeout curto usado pelos endpoints leves da API.
     const timeoutMs = path.startsWith('/api/home/') ? 45_000 : 10_000;
-    const response = await fetch(`${PROXY}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+    const response = await fetch(`${PROXY}${path}`, {
+      headers: { Authorization: `Bearer ${WORKER_API_TOKEN}` },
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (response.ok) return await response.json() as T;
     throw new Error(`Worker AnimeFire HTTP ${response.status}`);
   } catch (workerError) {
@@ -607,8 +622,8 @@ async function stream(type: MediaType, rawId: string) {
 async function manifest() {
   let dynamicCatalogs: Array<{ id: string; name: string; type: MediaType }> = [];
   try {
-    const response = await fetch(`${PROXY}/api/home/catalogs`, { signal: AbortSignal.timeout(15000) });
-    if (response.ok) dynamicCatalogs = ((await response.json()) as { data?: Array<{ id: string; name: string; type: MediaType }> }).data || [];
+    const payload = await proxy<{ data?: Array<{ id: string; name: string; type: MediaType }> }>('/api/home/catalogs');
+    dynamicCatalogs = payload.data || [];
   } catch (error) { console.warn('[manifest] carrosséis dinâmicos indisponíveis:', error); }
   const manifestCatalogs = [...catalogs, ...dynamicCatalogs.filter(dynamic => !catalogs.some(catalog => catalog.id === dynamic.id))];
   return {

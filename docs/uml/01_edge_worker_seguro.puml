@@ -1,0 +1,32 @@
+@startuml
+title AnimeDex — Edge Function ⇄ Browser Scraper (ANX-SEC 1.1)
+actor "Cliente Stremio" as Client
+participant "Supabase Edge Function" as Edge
+participant "Proxy HTTPS" as Proxy
+participant "Worker Express / Token" as Worker
+participant "Scraper autorizado" as Scraper
+Client -> Edge: GET manifest/catalog/meta
+Edge -> Edge: Deno.env WORKER_API_TOKEN
+alt Configuração ausente ou HTTP remoto
+  Edge --> Client: Fallback de API ou erro controlado
+else URL HTTPS e token forte
+  Edge -> Proxy: HTTPS Authorization Bearer
+  Proxy -> Worker: HTTP loopback 127.0.0.1:8787
+  alt Token inválido
+    Worker --> Proxy: 401/503
+    Proxy --> Edge: Erro
+    Edge --> Client: Fallback ou erro
+  else Token correto
+    Worker -> Scraper: Consulta autorizada
+    Scraper --> Worker: JSON/HTML
+    Worker --> Proxy: 200 JSON
+    Proxy --> Edge: 200 JSON
+    Edge --> Client: Manifest/catalog/meta
+  end
+end
+note over Worker
+  /health isenta apenas para healthcheck
+  Sandbox Chromium, TLS real e SSRF em navegador
+  ainda requerem homologação
+end note
+@enduml

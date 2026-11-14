@@ -1,0 +1,39 @@
+name: Segurança do scraper worker
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  contrato:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testar token de acesso e fail-closed
+        run: node --test scraper-worker/tests/*.test.cjs
+      - name: Verificar sintaxe do servidor worker
+        run: node --check scraper-worker/server.js
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Verificar tipos da Edge Function Deno
+        run: deno check supabase/functions/animedex/index.ts
+      - name: Validar Docker Compose do worker sem subir contêineres
+        env:
+          WORKER_API_TOKEN: token-sintetico-ci-mais-de-trinta-e-dois-caracteres
+        run: |
+          docker compose -f scraper-worker/docker-compose.yml config --format json > /tmp/animedex-worker-compose.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/animedex-worker-compose.json', encoding='utf-8') as source:
+              services = json.load(source)['services']
+          worker = services['animedex-scraper']
+          assert all(p['host_ip'] == '127.0.0.1' for p in worker.get('ports', []))
+          assert worker['environment']['BIND_HOST'] == '0.0.0.0'
+          assert len(worker['environment']['WORKER_API_TOKEN']) >= 32
+          print('Compose de laboratório: loopback externo, token injetado somente no servidor')
+          PY

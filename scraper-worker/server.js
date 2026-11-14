@@ -1,9 +1,11 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+const { verificarTokenWorker } = require('./security/worker-token.cjs');
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
+const bindHost = process.env.BIND_HOST || '127.0.0.1';
 const configuredHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
 const allowedHosts = new Set([configuredHost, 'animefire.plus', 'animefire.io', 'animefire.one']);
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS || 60000);
@@ -132,7 +134,8 @@ async function render(rawUrl) {
 async function fetchRenderedHtml(rawUrl) {
   const url = assertAllowed(rawUrl);
   const response = await fetch(url, {
-    redirect: 'follow',
+    // Reject cross-host HTTP redirects; URLs from providers must be independently validated.
+    redirect: 'error',
     headers: {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36 AnimeDexWorker/1.0',
       Accept: 'text/html,application/xhtml+xml',
@@ -366,6 +369,19 @@ function labelFromApiUrl(rawUrl, index) {
   return `AnimeFire ${index + 1}`;
 }
 
+// Health is unauthenticated for local probes. Every operation that queries a
+// provider or exposes cache internals requires the private server-to-server key.
+app.use((req, res, next) => {
+  if (req.path === '/health') return next();
+  const status = verificarTokenWorker(req.get('authorization'), process.env.WORKER_API_TOKEN);
+  if (status !== 200) {
+    return res.status(status).json({
+      error: status === 503 ? 'worker_nao_configurado' : 'nao_autorizado'
+    });
+  }
+  return next();
+});
+
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker', cacheTtlMs, cacheEntries: cache.size }));
 app.get('/api/cache/stats', (_req, res) => {
   clearExpiredCache();
@@ -429,7 +445,7 @@ app.get('/render', async (req, res) => {
   }
 });
 
-const server = app.listen(port, '0.0.0.0', () => console.log(`Scraper worker ouvindo na porta ${port}; cache TTL ${cacheTtlMs} ms`));
+const server = app.listen(port, bindHost, () => console.log(`Scraper worker ouvindo na porta ${port}; cache TTL ${cacheTtlMs} ms`));
 async function shutdown() {
   server.close();
   if (browserPromise) (await browserPromise).close().catch(() => {});
