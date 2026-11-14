@@ -14,9 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 COPY server.js README.md ./
+COPY security/ ./security/
+
 ENV PORT=8787
 EXPOSE 8787
 CMD ["node", "server.js"]
