@@ -1,0 +1,34 @@
+name: AnimeDex - validação de roteamento legado
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  legacy-routing:
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Dependências reproduzíveis
+        run: npm ci
+      - name: Gerar cliente Prisma SQLite legado
+        run: npx prisma generate
+      - name: Compilar TypeScript
+        run: npm run build
+      - name: Testes determinísticos de roteamento
+        run: node --test tests/stream-routing.test.cjs
+      - name: Testes de integridade documental
+        run: python3 -m unittest discover -s tests -p test_documentacao.py -v
