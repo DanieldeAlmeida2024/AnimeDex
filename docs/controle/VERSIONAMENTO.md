@@ -24,3 +24,9 @@ O código legado Node/Prisma continua para referência; a integração ativa do 
 - `skipLibCheck` no compilador afeta somente definições transitivas de terceiros; o código-fonte continua com `strict`.
 - Diagrama de fluxo: `docs/uml/04_roteamento_streams.puml`.
 - Limite: suíte testa roteamento determinístico, não disponibilidade de streams nem uso autorizado das fontes.
+
+## ANX-DEPS v1.3.0 · 14/11/2026 — supply chain scraper-worker
+
+- Lock npm atualizado para Puppeteer 25.17.0 e dependências transitivas revisadas.
+- CI ganha job de `npm ci`, require de dependências e `npm audit --omit=dev --audit-level=moderate`, bloqueante.
+- Nenhum ambiente remoto alterado; teste navegador real e compliance pendentes.

@@ -184,3 +184,7 @@ O worker não deve receber chamadas HTTP públicas sem autenticação. Esta revi
 ## Manutenção do adaptador Node legado — seleção de streams
 
 O código legado Node/Prisma agora distingue IDs IMDb de filme (`tt1234567`) e episódio (`tt1234567:1:2`) de identificadores próprios AnimeFire. Execute `npm ci && npx prisma generate && npm run build && node --test tests/stream-routing.test.cjs`. O pipeline `legacy-routing-ci.yml` verifica o build e **16 testes de seleção**, não provedores externos, conteúdo de mídia ou infraestrutura Supabase.
+
+## Auditoria de dependências do worker
+
+O scraper-worker usa `puppeteer@25.17.0` e lockfile reprodutível. O workflow `security-worker.yml` passou a exigir `npm ci` e auditoria de dependências de produção, além dos controles Edge/worker e Deno. Consulte `docs/seguranca/AUDITORIA_DEPENDENCIAS_WORKER.md`. O pacote Node/Prisma legado mantém auditoria separada e não está automaticamente aprovado pelo CI do worker.
