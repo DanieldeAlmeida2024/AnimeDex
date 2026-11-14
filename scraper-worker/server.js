@@ -1,9 +1,11 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+const { verificarTokenWorker } = require('./security/worker-token.cjs');
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
+const bindHost = process.env.BIND_HOST || '127.0.0.1';
 const configuredHost = new URL(process.env.ANIMEFIRE_BASE_URL || 'https://animefire.one').hostname;
 const allowedHosts = new Set([configuredHost, 'animefire.plus', 'animefire.io', 'animefire.one']);
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS || 60000);
@@ -366,6 +368,16 @@ function labelFromApiUrl(rawUrl, index) {
   return `AnimeFire ${index + 1}`;
 }
 
+// Somente /health pode responder sem token; demais recursos podem acionar scraping custoso.
+app.use((req, res, next) => {
+  if (req.path === '/health') return next();
+  const codigo = verificarTokenWorker(req.get('authorization'), process.env.WORKER_API_TOKEN);
+  if (codigo !== 200) {
+    return res.status(codigo).json({ error: codigo === 503 ? 'worker_nao_configurado' : 'nao_autorizado' });
+  }
+  next();
+});
+
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'animedex-scraper-worker', cacheTtlMs, cacheEntries: cache.size }));
 app.get('/api/cache/stats', (_req, res) => {
   clearExpiredCache();
@@ -429,7 +441,7 @@ app.get('/render', async (req, res) => {
   }
 });
 
-const server = app.listen(port, '0.0.0.0', () => console.log(`Scraper worker ouvindo na porta ${port}; cache TTL ${cacheTtlMs} ms`));
+const server = app.listen(port, bindHost, () => console.log(`Scraper worker ouvindo em ${bindHost}:${port}; cache TTL ${cacheTtlMs} ms`));
 async function shutdown() {
   server.close();
   if (browserPromise) (await browserPromise).close().catch(() => {});
