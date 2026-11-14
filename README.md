@@ -11,7 +11,11 @@ Consulte supabase/ e configure variáveis de ambiente para as Edge Functions.
 **Validação nativa:** `Validar manifest/catalog/meta/stream em ambiente de teste.`. Não afirmar sucesso sem executar o procedimento com as dependências necessárias.
 
 ## Cuidados
-Não considerar fontes de streaming e scraping garantidas; respeitar direitos autorais e termos das fontes.
+Não considerar fontes de streaming e scraping garantidas; respeitar direitos autorais e termos das fontes. O scraper não deve ser publicado sem proteção de autenticação, TLS e isolamento de rede.
+
+**Mitigação em revisão (13/11/2026):** a Edge Function não usa mais endereço público HTTP hardcoded; só acessa worker remoto via `BROWSER_SCRAPER_URL` HTTPS e `WORKER_API_TOKEN` (32+ caracteres). O worker protege `/api` e `/render`, publica a porta Docker apenas em localhost e falha fechado sem segredo configurado. Configure token nas duas partes antes de habilitar o worker. [Guia de implantação segura](scraper-worker/ORACLE-CLOUD.md).
+
+**Não homologado:** dependências Node ainda possuem alerta P0 de vulnerabilidades, e a atualização do lockfile não foi executada nesta correção. Execute `node --test scraper-worker/tests/*.test.cjs`, compile a imagem e homologue o fluxo HTTPS antes de produção.
 
 **Documentação técnica:** [Requisitos](docs/REQUISITOS.md) · [Arquitetura](docs/ARQUITETURA.md) · [UML](docs/UML.puml) · [Plano de testes](docs/PLANO_TESTES.md) · [Guia para IA](AGENTS.md).
 
