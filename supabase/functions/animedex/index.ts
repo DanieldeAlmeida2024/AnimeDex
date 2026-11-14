@@ -13,6 +13,7 @@ const headers = {
 
 type ApiAnime = {
   id: string;
+  episodeId?: string;
   titles?: Record<string, string>;
   audio?: string;
   poster_src?: string;
