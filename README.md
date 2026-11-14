@@ -180,3 +180,7 @@ O worker não deve receber chamadas HTTP públicas sem autenticação. Esta revi
 **Mudança incompatível intencional:** um worker anteriormente acessível por HTTP na porta 8787 deixará de ser utilizado pela Edge Function até haver proxy HTTPS e token configurados em ambas as pontas. Não libere a porta pública para contornar o bloqueio.
 
 [Instruções de configuração e teste protegido](scraper-worker/ORACLE-CLOUD.md) · [Contrato de segurança](docs/seguranca/WORKER_EDGE_AUTH.md) · [Testes](docs/testes/WORKER_EDGE.md). Essa alteração não foi implantada na VM nem no Supabase.
+
+## Manutenção do adaptador Node legado — seleção de streams
+
+O código legado Node/Prisma agora distingue IDs IMDb de filme (`tt1234567`) e episódio (`tt1234567:1:2`) de identificadores próprios AnimeFire. Execute `npm ci && npx prisma generate && npm run build && node --test tests/stream-routing.test.cjs`. O pipeline `legacy-routing-ci.yml` verifica o build e **16 testes de seleção**, não provedores externos, conteúdo de mídia ou infraestrutura Supabase.

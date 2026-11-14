@@ -5,6 +5,7 @@
     "outDir": "./dist",        /* ONDE os arquivos JS serão gerados */
     "rootDir": "./src",        /* ONDE seu código TypeScript está */
     "strict": true,
+    "skipLibCheck": true, /* Evita falha de typings transitivos (parse5/entities); não desabilita strict no código fonte. */
     "esModuleInterop": true
   },
   "include": ["src/**/*.ts"]   /* Quais arquivos .ts serão compilados */

@@ -9,6 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import { scraperTorrentsStreams } from './services/scraperStream';
 import { animeFireHeadler, animeFireMetaHeadler } from './providers/animeFire/addon';
 import { scraperAnimeFireStreams } from './services/scraperAnimeFireStream';
+import { dispatchStream } from './utils/stream-routing';
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -33,16 +34,13 @@ builder.defineMetaHandler(async ({ id, type }: { id: string; type: string }) => 
 });
 
 builder.defineStreamHandler(async ({ id, type, season, episode }: { id: string; type: "series" | "movie", season?: number, episode?: number }) => {
-    const isImdbIdOnly = /^tt\d+$/.test(id);
-    const isStremioImdbEpisodeId = /^tt\d+:\d+:\d+$/.test(id);
-    let streams: Stream[] = []; 
+    const streams: Stream[] = [];
 
     try {
-        if (isImdbIdOnly && isStremioImdbEpisodeId) {
-            return await scraperTorrentsStreams(streams, id, type, season, episode);
-        } else {
-            return await scraperAnimeFireStreams(streams, id, type, season, episode);
-        }
+        return await dispatchStream(id, {
+            imdb: () => scraperTorrentsStreams(streams, id, type, season, episode),
+            animefire: () => scraperAnimeFireStreams(streams, id, type, season, episode),
+        });
     } catch (error: any) {
         console.error(`[StreamHandler] ❌ ERRO GERAL no Stream Handler para ID "${id}": ${error.message}`);
         return Promise.reject(new Error(`Failed to retrieve streams: ${error.message}`));
