@@ -37,3 +37,24 @@ jobs:
           assert len(worker['environment']['WORKER_API_TOKEN']) >= 32
           print('Compose de laboratório: loopback externo, token injetado somente no servidor')
           PY
+  supply-chain-worker:
+    name: npm ci e auditoria de dependências runtime do worker
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: scraper-worker
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scraper-worker/package-lock.json
+      - name: Instalar exatamente o lock sem executar scripts de instalação no runner
+        run: npm ci --omit=dev --ignore-scripts
+      - name: Validar dependências carregáveis
+        run: node -e "require('puppeteer');require('express');require('cheerio')"
+      - name: Falhar para avisos moderados ou mais graves
+        run: npm audit --omit=dev --audit-level=moderate
