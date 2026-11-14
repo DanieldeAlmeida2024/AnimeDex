@@ -1,29 +1,14 @@
-# AnimeDex
+# AnimeDex — catálogo de animes para Stremio
 
-Addon Stremio de catálogo de animes com Supabase/Deno e worker opcional de scraping.
+Addon de catálogo para Stremio com **Supabase Edge Functions (Deno)**, armazenamento no PostgreSQL e worker opcional para páginas que exigem processamento no navegador.
 
-## Tecnologias e organização
-Deno, Supabase, PostgreSQL; Node/Prisma legado. Código e configurações principais: `supabase/, scraper-worker/, src/`.
+O projeto inclui rotas `manifest`, `catalog`, `meta` e `stream`, integração de metadados e cache. A disponibilidade das fontes externas depende de seus serviços, termos e autorizações.
 
-## Começar
-Consulte supabase/ e configure variáveis de ambiente para as Edge Functions.
+**Condições de uso:** o worker opcional precisa de autenticação e HTTPS antes de qualquer exposição remota. Utilize apenas fontes de conteúdo cuja distribuição e consulta sejam autorizadas.
 
-**Validação nativa:** `Validar manifest/catalog/meta/stream em ambiente de teste.`. Não afirmar sucesso sem executar o procedimento com as dependências necessárias.
+[Arquitetura](docs/ARQUITETURA.md) · [Requisitos](docs/REQUISITOS.md) · [UML](docs/UML.puml) · [Plano de testes](docs/PLANO_TESTES.md).
 
-## Cuidados
-Não considerar fontes de streaming e scraping garantidas; respeitar direitos autorais e termos das fontes.
-
-**Documentação técnica:** [Requisitos](docs/REQUISITOS.md) · [Arquitetura](docs/ARQUITETURA.md) · [UML](docs/UML.puml) · [Plano de testes](docs/PLANO_TESTES.md) · [Guia para IA](AGENTS.md).
-
----
-
-## Conteúdo anterior do repositório (preservado)
-
-# AnimeDex
-
-Addon para o Stremio com catálogo e streams de animes. A implantação recomendada agora usa **Supabase Edge Functions + Supabase Postgres**, sem Node.js, Prisma, SQLite ou Cheerio no caminho de produção.
-
-## Arquitetura atual
+## Arquitetura do addon
 
 ```text
 Stremio
@@ -39,11 +24,11 @@ Supabase Edge Function (Deno)
   └── Supabase Postgres para cache
 ```
 
-A implementação oficial está em [`supabase/`](./supabase/). O código legado Node/Prisma em `src/` e `dist/` permanece no repositório para referência e migração gradual, mas não é necessário para o deploy Supabase. A busca do addon é própria: o Stremio pode enviar uma consulta ao AnimeDex, e a função pesquisa somente a fonte/catalogo do AnimeDex.
+A implementação oficial está em [`supabase/`](./supabase/). O código Node/Prisma em `src/` e `dist/` permanece no repositório para referência e migração gradual, mas não é necessário para o deploy Supabase. A busca do addon é própria: o Stremio pode enviar uma consulta ao AnimeDex, e a função pesquisa somente a fonte/catalogo do AnimeDex.
 
 Quando a página depende de JavaScript, DOM renderizado ou seletores complexos, o projeto **mantém o caminho Cheerio/Puppeteer**. Esse caminho roda no [`scraper-worker/`](./scraper-worker/) como processo separado, porque Puppeteer não pode ser executado dentro de uma Supabase Edge Function. A Edge Function chama o worker quando `BROWSER_SCRAPER_URL` está configurado e volta para `fetch` direto se ele estiver indisponível.
 
-## Funcionalidades da versão Supabase
+## Funcionalidades da integração Supabase
 
 - Manifesto compatível com Stremio.
 - Catálogos Top, Dublados, Atualizados e Legendados.
@@ -166,11 +151,11 @@ A service role key deve permanecer somente nos secrets da Edge Function. Nunca a
 - A função retorna URLs de mídia ao Stremio e não retransmite o vídeo.
 - Links de Real-Debrid podem expirar e são resolvidos sob demanda.
 - A função pública deve receber rate limiting/caching adicional se for disponibilizada para muitos usuários.
-- O serviço deve ser utilizado apenas com fontes, conteúdo e links cuja distribuição seja autorizada.
+- O serviço deve ser utilizado apenas com fontes, conteúdo e links cuja distribuição seja autorizada; componentes remotos exigem proteção do canal e controle de acesso.
 
-## Código legado
+## Módulos Node/Prisma de referência
 
-O fluxo original Node/Prisma ainda está disponível em `src/` para referência. Ele exige `npm install`, Prisma Client e um banco SQLite, mas não faz parte do caminho recomendado para produção Supabase.
+O fluxo Node/Prisma está disponível em `src/` para referência. Ele exige `npm install`, Prisma Client e um banco SQLite, mas não faz parte do caminho recomendado para produção Supabase.
 
 ## Comandos úteis
 
